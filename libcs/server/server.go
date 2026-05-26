@@ -621,6 +621,68 @@ func quotaCacheKey(id, secret string) string {
 	return id + ":" + secret
 }
 
+// buildUserFromQuotas builds a user struct from cached quotas and host prefixes.
+// It starts with server defaults and overrides fields present in the quotas.
+func (s *Server) buildUserFromQuotas(quotas *authAPIQuotas, hostPrefixes map[string]struct{}) user {
+	u := user{
+		TCPNumber:    &s.config.TCPNumber,
+		Speed:        s.config.Speed,
+		Connections:  s.config.Connections,
+		Host:         s.config.Host,
+		portsManager: &s.portsManager,
+	}
+	u.Host.Prefixes = hostPrefixes
+	if quotas != nil {
+		if quotas.TCPNumber != nil {
+			u.TCPNumber = quotas.TCPNumber
+		}
+		if quotas.Speed != nil {
+			u.Speed = *quotas.Speed
+		}
+		if quotas.Connections != nil {
+			u.Connections = *quotas.Connections
+		}
+		if quotas.MonthlyTrafficMB != nil {
+			u.MonthlyTrafficMB = *quotas.MonthlyTrafficMB
+		}
+		if quotas.HostNumber != nil {
+			hostNum := uint32(*quotas.HostNumber)
+			u.Host.Number = &hostNum
+		}
+		if quotas.HostRegex != nil {
+			regexSlice := config.Slice[string](quotas.HostRegex)
+			u.Host.RegexStr = &regexSlice
+		}
+		if quotas.HostWithID != nil {
+			u.Host.WithID = quotas.HostWithID
+		}
+		if quotas.TCPRanges != nil {
+			tcps := make([]tcp, len(quotas.TCPRanges))
+			for i, r := range quotas.TCPRanges {
+				tcps[i] = tcp{Range: r}
+			}
+			u.TCPs = tcps
+		}
+	}
+	return u
+}
+
+// buildUserFromCachedQuotas checks the quota cache for the given id/secret
+// and returns a user built from cached quotas. Returns a zero-value user
+// (with nil TCPNumber) if no unexpired cache entry exists.
+func (s *Server) buildUserFromCachedQuotas(id, secret string) user {
+	cacheKey := quotaCacheKey(id, secret)
+	cached, ok := s.quotaCache.Load(cacheKey)
+	if !ok {
+		return user{}
+	}
+	entry := cached.(*quotaCacheEntry)
+	if !time.Now().Before(entry.expiresAt) {
+		return user{}
+	}
+	return s.buildUserFromQuotas(entry.quotas, entry.hostPrefixes)
+}
+
 func (s *Server) authWithAPI(id string, secret string, prefixes []string) (hostPrefixes map[string]struct{}, quotas *authAPIQuotas, ok bool, err error) {
 	var bs bytes.Buffer
 	encoder := json.NewEncoder(&bs)
@@ -902,46 +964,7 @@ func (s *Server) authUserWithAPI(id string, secret string, prefixes []string) (u
 		})
 	}
 
-	u = user{
-		TCPNumber:    &s.config.TCPNumber,
-		Speed:        s.config.Speed,
-		Connections:  s.config.Connections,
-		Host:         s.config.Host,
-		portsManager: &s.portsManager,
-	}
-	u.Host.Prefixes = hostPrefixes
-	if quotas != nil {
-		if quotas.TCPNumber != nil {
-			u.TCPNumber = quotas.TCPNumber
-		}
-		if quotas.Speed != nil {
-			u.Speed = *quotas.Speed
-		}
-		if quotas.Connections != nil {
-			u.Connections = *quotas.Connections
-		}
-		if quotas.MonthlyTrafficMB != nil {
-			u.MonthlyTrafficMB = *quotas.MonthlyTrafficMB
-		}
-		if quotas.HostNumber != nil {
-			hostNum := uint32(*quotas.HostNumber)
-			u.Host.Number = &hostNum
-		}
-		if quotas.HostRegex != nil {
-			regexSlice := config.Slice[string](quotas.HostRegex)
-			u.Host.RegexStr = &regexSlice
-		}
-		if quotas.HostWithID != nil {
-			u.Host.WithID = quotas.HostWithID
-		}
-		if quotas.TCPRanges != nil {
-			tcps := make([]tcp, len(quotas.TCPRanges))
-			for i, r := range quotas.TCPRanges {
-				tcps[i] = tcp{Range: r}
-			}
-			u.TCPs = tcps
-		}
-	}
+	u = s.buildUserFromQuotas(quotas, hostPrefixes)
 	return
 }
 

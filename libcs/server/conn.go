@@ -428,11 +428,16 @@ func (c *conn) handleTunnel(remoteIP string, r bool) (reload bool, cli *client) 
 			return
 		}
 	} else {
-		u = user{
-			TCPNumber:   &c.server.config.TCPNumber,
-			Speed:       c.server.config.Speed,
-			Connections: c.server.config.Connections,
-			Host:        c.server.config.Host,
+		// Check quota cache first to use plan limits for initial validation
+		u = c.server.buildUserFromCachedQuotas(idStr, secretStr)
+		if u.TCPNumber == nil {
+			// No cached quotas, fall back to server defaults
+			u = user{
+				TCPNumber:   &c.server.config.TCPNumber,
+				Speed:       c.server.config.Speed,
+				Connections: c.server.config.Connections,
+				Host:        c.server.config.Host,
+			}
 		}
 		options, err = c.parseOptions(reader, idStr, u)
 		if err != nil {
