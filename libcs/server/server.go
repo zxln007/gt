@@ -37,7 +37,6 @@ import (
 	"syscall"
 	"time"
 
-	"github.com/buger/jsonparser"
 	"github.com/davecgh/go-spew/spew"
 	"github.com/isrc-cas/gt/config"
 	connection "github.com/isrc-cas/gt/conn"
@@ -593,7 +592,24 @@ type authParam struct {
 	AppletTokens     []string `json:"appletTokens"`
 }
 
-func (s *Server) authWithAPI(id string, secret string, prefixes []string) (hostPrefixes map[string]struct{}, ok bool, err error) {
+type authAPIResponse struct {
+	Result       bool           `json:"result"`
+	AppletTokens []string       `json:"appletTokens"`
+	Quotas       *authAPIQuotas `json:"quotas,omitempty"`
+}
+
+type authAPIQuotas struct {
+	HostNumber       *uint16  `json:"host_number,omitempty"`
+	TCPNumber        *uint16  `json:"tcp_number,omitempty"`
+	HostRegex        []string `json:"host_regex,omitempty"`
+	HostWithID       *bool    `json:"host_with_id,omitempty"`
+	Speed            *uint32  `json:"speed,omitempty"`
+	Connections      *uint32  `json:"connections,omitempty"`
+	MonthlyTrafficMB *uint64  `json:"monthly_traffic_mb,omitempty"`
+	TCPRanges        []string `json:"tcp_ranges,omitempty"`
+}
+
+func (s *Server) authWithAPI(id string, secret string, prefixes []string) (hostPrefixes map[string]struct{}, quotas *authAPIQuotas, ok bool, err error) {
 	var bs bytes.Buffer
 	encoder := json.NewEncoder(&bs)
 	p := &authParam{
@@ -627,15 +643,18 @@ func (s *Server) authWithAPI(id string, secret string, prefixes []string) (hostP
 		err = fmt.Errorf("invalid http status code %d, body: %s", resp.StatusCode, string(r))
 		return
 	}
-	ok, err = jsonparser.GetBoolean(r, "result")
+	var apiResp authAPIResponse
+	err = json.Unmarshal(r, &apiResp)
+	if err != nil {
+		return
+	}
+	ok = apiResp.Result
 	if ok {
+		quotas = apiResp.Quotas
 		hostPrefixes = make(map[string]struct{})
 		hostPrefixes[id] = struct{}{}
-		_, err = jsonparser.ArrayEach(r, func(value []byte, dataType jsonparser.ValueType, offset int, err error) {
-			hostPrefixes[string(value)] = struct{}{}
-		}, "appletTokens")
-		if errors.Is(err, jsonparser.KeyPathNotFoundError) {
-			err = nil
+		for _, token := range apiResp.AppletTokens {
+			hostPrefixes[token] = struct{}{}
 		}
 	}
 	return
@@ -825,7 +844,7 @@ func (s *Server) authUserWithAPI(id string, secret string, prefixes []string) (u
 		err = ErrInvalidUser
 		return
 	}
-	hostPrefixes, ok, err := s.authWithAPI(id, secret, prefixes)
+	hostPrefixes, quotas, ok, err := s.authWithAPI(id, secret, prefixes)
 	if err != nil {
 		return
 	}
@@ -846,6 +865,38 @@ func (s *Server) authUserWithAPI(id string, secret string, prefixes []string) (u
 		portsManager: &s.portsManager,
 	}
 	u.Host.Prefixes = hostPrefixes
+	if quotas != nil {
+		if quotas.TCPNumber != nil {
+			u.TCPNumber = quotas.TCPNumber
+		}
+		if quotas.Speed != nil {
+			u.Speed = *quotas.Speed
+		}
+		if quotas.Connections != nil {
+			u.Connections = *quotas.Connections
+		}
+		if quotas.MonthlyTrafficMB != nil {
+			u.MonthlyTrafficMB = *quotas.MonthlyTrafficMB
+		}
+		if quotas.HostNumber != nil {
+			hostNum := uint32(*quotas.HostNumber)
+			u.Host.Number = &hostNum
+		}
+		if quotas.HostRegex != nil {
+			regexSlice := config.Slice[string](quotas.HostRegex)
+			u.Host.RegexStr = &regexSlice
+		}
+		if quotas.HostWithID != nil {
+			u.Host.WithID = quotas.HostWithID
+		}
+		if quotas.TCPRanges != nil {
+			tcps := make([]tcp, len(quotas.TCPRanges))
+			for i, r := range quotas.TCPRanges {
+				tcps[i] = tcp{Range: r}
+			}
+			u.TCPs = tcps
+		}
+	}
 	return
 }
 

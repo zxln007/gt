@@ -153,12 +153,13 @@ type tcp struct {
 
 // user 用户权限细节
 type user struct {
-	Secret      string
-	TCPs        []tcp   `yaml:"tcp,omitempty" json:",omitempty"`
-	TCPNumber   *uint16 `yaml:"tcpNumber,omitempty"`
-	Speed       uint32  `yaml:"speed,omitempty" json:",omitempty"`
-	Connections uint32  `yaml:"connections,omitempty" json:",omitempty"`
-	Host        host    `yaml:"host,omitempty" json:",omitempty"`
+	Secret           string
+	TCPs             []tcp   `yaml:"tcp,omitempty" json:",omitempty"`
+	TCPNumber        *uint16 `yaml:"tcpNumber,omitempty"`
+	Speed            uint32  `yaml:"speed,omitempty" json:",omitempty"`
+	Connections      uint32  `yaml:"connections,omitempty" json:",omitempty"`
+	Host             host    `yaml:"host,omitempty" json:",omitempty"`
+	MonthlyTrafficMB uint64  `yaml:"monthlyTrafficMB,omitempty" json:",omitempty"`
 
 	temp         bool
 	portsManager *portsManager
