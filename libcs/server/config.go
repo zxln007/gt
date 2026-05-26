@@ -50,6 +50,7 @@ type Options struct {
 	Secrets           config.Slice[string] `arg:"secret" yaml:"-" json:"-" usage:"The secret for user id"`
 	Users             string               `yaml:"users,omitempty" json:"UserPath,omitempty" usage:"The users yaml file to load"`
 	AuthAPI           string               `yaml:"authAPI,omitempty" json:",omitempty" usage:"The API to authenticate user with id and secret"`
+	AuthAPICacheTTL   config.Duration      `yaml:"authAPICacheTTL,omitempty" json:",omitempty" usage:"TTL for caching AuthAPI quota responses. Supports values like '5m', '30s'. Default is 5m"`
 	AllowAnyClient    bool                 `yaml:"allowAnyClient,omitempty" json:",omitempty" usage:"Allow any client to connect to the server"`
 	TCPRanges         config.Slice[string] `arg:"tcpRange" yaml:"-" json:"-" usage:"The tcp port range, like 1024-65535"`
 	TCPNumber         uint16               `arg:"tcpNumber" yaml:"tcpNumber,omitempty" json:",omitempty" usage:"The number of tcp ports allowed to be opened for each id"`

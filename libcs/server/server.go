@@ -79,6 +79,8 @@ type Server struct {
 
 	hostPrefix2Client    sync.Map // key: hostPrefix(string) value: *client
 	tlsHostPrefix2Client sync.Map // key: hostPrefix(string) value: *client
+
+	quotaCache gosync.Map // key: string(id+":"+secret) value: *quotaCacheEntry
 }
 
 // New parses the command line args and creates a Server. out 用于测试
@@ -609,6 +611,16 @@ type authAPIQuotas struct {
 	TCPRanges        []string `json:"tcp_ranges,omitempty"`
 }
 
+type quotaCacheEntry struct {
+	quotas       *authAPIQuotas
+	hostPrefixes map[string]struct{}
+	expiresAt    time.Time
+}
+
+func quotaCacheKey(id, secret string) string {
+	return id + ":" + secret
+}
+
 func (s *Server) authWithAPI(id string, secret string, prefixes []string) (hostPrefixes map[string]struct{}, quotas *authAPIQuotas, ok bool, err error) {
 	var bs bytes.Buffer
 	encoder := json.NewEncoder(&bs)
@@ -844,19 +856,52 @@ func (s *Server) authUserWithAPI(id string, secret string, prefixes []string) (u
 		err = ErrInvalidUser
 		return
 	}
-	hostPrefixes, quotas, ok, err := s.authWithAPI(id, secret, prefixes)
-	if err != nil {
-		return
+
+	// Determine cache TTL, default to 5 minutes
+	ttl := s.config.AuthAPICacheTTL.Duration
+	if ttl == 0 {
+		ttl = 5 * time.Minute
 	}
-	if !ok {
-		if s.apiServer != nil && s.apiServer.Auth(id, secret) {
-			u = s.newTempUserForAPIServer()
-			err = nil
+
+	// Check cache first
+	cacheKey := quotaCacheKey(id, secret)
+	var hostPrefixes map[string]struct{}
+	var quotas *authAPIQuotas
+
+	if cached, ok := s.quotaCache.Load(cacheKey); ok {
+		entry := cached.(*quotaCacheEntry)
+		if time.Now().Before(entry.expiresAt) {
+			hostPrefixes = entry.hostPrefixes
+			quotas = entry.quotas
+		} else {
+			s.quotaCache.Delete(cacheKey)
+		}
+	}
+
+	if hostPrefixes == nil {
+		// Cache miss or expired — call the API
+		var apiOk bool
+		hostPrefixes, quotas, apiOk, err = s.authWithAPI(id, secret, prefixes)
+		if err != nil {
 			return
 		}
-		err = ErrInvalidUser
-		return
+		if !apiOk {
+			if s.apiServer != nil && s.apiServer.Auth(id, secret) {
+				u = s.newTempUserForAPIServer()
+				err = nil
+				return
+			}
+			err = ErrInvalidUser
+			return
+		}
+		// Store successful result in cache
+		s.quotaCache.Store(cacheKey, &quotaCacheEntry{
+			quotas:       quotas,
+			hostPrefixes: hostPrefixes,
+			expiresAt:    time.Now().Add(ttl),
+		})
 	}
+
 	u = user{
 		TCPNumber:    &s.config.TCPNumber,
 		Speed:        s.config.Speed,
