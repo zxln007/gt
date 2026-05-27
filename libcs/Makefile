@@ -83,15 +83,27 @@ ifeq ($(TARGET_CPU), i386)
     TARGET_CPU=x86
 endif
 PWD=$(shell pwd)
+MSQUIC_MODE?=build
+MSQUIC_BUILD_ROOT?=$(PWD)/dep/_msquic
+MSQUIC_PREBUILT_ROOT?=$(PWD)/prebuilt/msquic/$(TARGET)
+MSQUIC_ARTIFACT_LIB_NAME?=libmsquic.a
+ifeq ($(MSQUIC_MODE),prebuilt)
+	MSQUIC_INCLUDE_DIR:=$(MSQUIC_PREBUILT_ROOT)/include
+	MSQUIC_LIB_FILE:=$(MSQUIC_PREBUILT_ROOT)/lib/$(MSQUIC_ARTIFACT_LIB_NAME)
+	MSQUIC_METADATA_FILE:=$(MSQUIC_PREBUILT_ROOT)/metadata.json
+else
+	MSQUIC_INCLUDE_DIR:=$(MSQUIC_BUILD_ROOT)/src/inc
+	MSQUIC_LIB_FILE:=$(MSQUIC_BUILD_ROOT)/out/$(TARGET)/bin/Release/libmsquic.a
+endif
 export CGO_CXXFLAGS=-I$(PWD)/dep/_google-webrtc/src \
 	-I$(PWD)/dep/_google-webrtc/src/third_party/abseil-cpp \
-	-I$(PWD)/dep/_msquic/src/inc \
+	-I$(MSQUIC_INCLUDE_DIR) \
 	-std=c++20 $(DEF_WEBRTC_COND) -DQUIC_API_ENABLE_PREVIEW_FEATURES
 export CGO_LDFLAGS= $(DEF_LDFLAGS) \
 	-pthread
 export CGO_ENABLED=1
 
-.PHONY: all build docker_build_linux_arm64 fmt build_client docker_build_linux_arm64_client gofumpt build_server docker_build_linux_arm64_server golangci-lint check_webrtc_dependencies docker_release_linux_amd64 release clean docker_release_linux_amd64_client release_client compile_webrtc docker_release_linux_amd64_server release_server docker_create_image docker_build_linux_amd64 docker_release_linux_arm64 revive docker_build_linux_amd64_client docker_release_linux_arm64_client test docker_build_linux_amd64_server docker_release_linux_arm64_server set_safe_directories update_submodule  build_web_server build_web_client release_web_server release_web_client check_npm front_release duplicate_dist_server clean_duplication_client clean_web clean_dist clean_duplication clean_duplication_server clean_duplication_client  check_msquic_dependencies compile_msquic
+.PHONY: all build docker_build_linux_arm64 fmt build_client docker_build_linux_arm64_client gofumpt build_server docker_build_linux_arm64_server golangci-lint check_webrtc_dependencies docker_release_linux_amd64 release clean docker_release_linux_amd64_client release_client compile_webrtc docker_release_linux_amd64_server release_server docker_create_image docker_build_linux_amd64 docker_release_linux_arm64 revive docker_build_linux_amd64_client docker_release_linux_arm64_client test docker_build_linux_amd64_server docker_release_linux_arm64_server set_safe_directories update_submodule build_web_server build_web_client release_web_server release_web_client check_npm front_release duplicate_dist_server clean_duplication_client clean_web clean_dist clean_duplication clean_duplication_server clean_duplication_client check_msquic_dependencies resolve_msquic validate_msquic build_msquic prepare_msquic compile_msquic
 
 all: gofumpt golangci-lint test release
 
@@ -101,11 +113,11 @@ gofumpt:
 	gofumpt --version || go install mvdan.cc/gofumpt@latest
 	gofumpt -l -w $(shell find . -name '*.go' | grep -Ev '^\./bufio|^\./client/std|^\./logger/file-rotatelogs|^\./dep')
 
-test: compile_webrtc compile_msquic
+test: compile_webrtc prepare_msquic
 	$(eval CGO_CXXFLAGS+=-O0 -g -ggdb)
 	go test -race -cover -count 1 ./...
 
-test_without_static: compile_webrtc compile_msquic
+test_without_static: compile_webrtc prepare_msquic
 	$(eval CGO_CXXFLAGS+=-O0 -g -ggdb)
 	go test -tags nostatic -race -cover -count 1 ./...
 
@@ -123,7 +135,7 @@ golangci-lint:
 
 update_submodule: set_safe_directories
 	$(UPDATE_SUBMODULE_COMMAND)
-	@git apply dep/patch/*.patch && echo "patches applied" || echo "no patch applied"
+	@cd .. && git apply libcs/dep/patch/*.patch && echo "patches applied" || echo "no patch applied"
 
 set_safe_directories:
 	@echo "Setting safe directories..."
@@ -203,33 +215,33 @@ docker_release_linux_arm64_server: docker_create_image
 
 build: build_server build_client
 release: release_server release_client
-build_client: $(SOURCES) Makefile compile_msquic compile_webrtc compile_p2p
+build_client: $(SOURCES) Makefile prepare_msquic compile_webrtc compile_p2p
 	$(eval CGO_CXXFLAGS+=-O0 -g -ggdb)
 	$(eval CGO_LDFLAGS+=$(PWD)/dep/p2p/target/$(RUST_TARGET)/release/libp2p.a)
 	$(eval NAME=$(GOOS)-$(GOARCH)-client)
 	go build $(DEBUG_OPTIONS) -o build/$(NAME)$(EXE) ./cmd/client
-release_client: $(SOURCES) Makefile compile_msquic compile_webrtc compile_p2p release_web_client
+release_client: $(SOURCES) Makefile prepare_msquic compile_webrtc compile_p2p release_web_client
 	$(eval CGO_CXXFLAGS+=-O3)
 	$(eval CGO_LDFLAGS+=$(PWD)/dep/p2p/target/$(RUST_TARGET)/release/libp2p.a)
 	$(eval NAME=$(GOOS)-$(GOARCH)-client)
 	go build $(RELEASE_OPTIONS) -o release/$(NAME)$(EXE) ./cmd/client
-build_server: $(SOURCES) Makefile compile_msquic compile_webrtc
+build_server: $(SOURCES) Makefile prepare_msquic compile_webrtc
 	$(eval CGO_CXXFLAGS+=-O0 -g -ggdb)
 	$(eval NAME=$(GOOS)-$(GOARCH)-server)
 	go build $(DEBUG_OPTIONS) -o build/$(NAME)$(EXE) ./cmd/server
-release_server: $(SOURCES) Makefile compile_msquic compile_webrtc release_web_server
+release_server: $(SOURCES) Makefile prepare_msquic compile_webrtc release_web_server
 	$(eval CGO_CXXFLAGS+=-O3)
 	$(eval NAME=$(GOOS)-$(GOARCH)-server)
 	go build $(RELEASE_OPTIONS) -o release/$(NAME)$(EXE) ./cmd/server
-build_lib: $(SOURCES) Makefile compile_msquic compile_webrtc
+build_lib: $(SOURCES) Makefile prepare_msquic compile_webrtc
 	mkdir -p release/$(RUST_TARGET)
 	cp $(PWD)/dep/_google-webrtc/src/out/release-$(TARGET)/obj/libwebrtc.a release/$(RUST_TARGET)/
-	cp $(PWD)/dep/_msquic/out/$(TARGET)/bin/Release/libmsquic.a release/$(RUST_TARGET)/
+	cp $(MSQUIC_LIB_FILE) release/$(RUST_TARGET)/
 	go build $(DEBUG_OPTIONS) -buildmode=c-archive -o release/$(RUST_TARGET)/libcs.a ./lib/export
-release_lib: $(SOURCES) Makefile compile_msquic compile_webrtc release_web_client release_web_server
+release_lib: $(SOURCES) Makefile prepare_msquic compile_webrtc release_web_client release_web_server
 	mkdir -p release/$(RUST_TARGET)
 	cp $(PWD)/dep/_google-webrtc/src/out/release-$(TARGET)/obj/libwebrtc.a release/$(RUST_TARGET)/
-	cp $(PWD)/dep/_msquic/out/$(TARGET)/bin/Release/libmsquic.a release/$(RUST_TARGET)/
+	cp $(MSQUIC_LIB_FILE) release/$(RUST_TARGET)/
 	go build $(RELEASE_OPTIONS) -buildmode=c-archive -o release/$(RUST_TARGET)/libcs.a ./lib/export
 
 release_web_server: $(SOURCES_FRONT) Makefile check_npm front_release duplicate_dist_server
@@ -362,8 +374,37 @@ endif
 check_msquic_dependencies:
 	sh -c "command -v cmake"
 
+resolve_msquic:
+ifeq ($(MSQUIC_MODE),prebuilt)
+	@echo "Using prebuilt msquic from $(MSQUIC_PREBUILT_ROOT)"
+else
+	@echo "Using build-mode msquic from $(MSQUIC_BUILD_ROOT)"
+endif
+
+validate_msquic:
+	test -d "$(MSQUIC_INCLUDE_DIR)"
+	test -f "$(MSQUIC_LIB_FILE)"
+ifeq ($(MSQUIC_MODE),prebuilt)
+	test -f "$(MSQUIC_METADATA_FILE)"
+	grep -Eq '"target"[[:space:]]*:[[:space:]]*"$(TARGET)"' "$(MSQUIC_METADATA_FILE)"
+	grep -Eq '"library_type"[[:space:]]*:[[:space:]]*"static"' "$(MSQUIC_METADATA_FILE)"
+ifeq ($(TARGET_OS),linux)
+	grep -Eq '"rename_symbols_applied"[[:space:]]*:[[:space:]]*true' "$(MSQUIC_METADATA_FILE)"
+endif
+endif
+
+prepare_msquic: resolve_msquic
+ifeq ($(MSQUIC_MODE),prebuilt)
+	$(MAKE) validate_msquic MSQUIC_MODE=$(MSQUIC_MODE) TARGET=$(TARGET)
+else
+	$(MAKE) build_msquic MSQUIC_MODE=$(MSQUIC_MODE) TARGET=$(TARGET)
+	$(MAKE) validate_msquic MSQUIC_MODE=$(MSQUIC_MODE) TARGET=$(TARGET)
+endif
+
+compile_msquic: prepare_msquic
+
 ifeq ($(TARGET_OS), linux)
-compile_msquic: check_msquic_dependencies update_submodule
+build_msquic: check_msquic_dependencies update_submodule
 	mkdir -p ./dep/_msquic/out/$(TARGET)
 	cmake -B./dep/_msquic/out/$(TARGET) -S./dep/_msquic -DQUIC_BUILD_SHARED=OFF -DCMAKE_TARGET_ARCHITECTURE=$(TARGET_CPU)
 	make -C./dep/_msquic/out/$(TARGET) -j$(shell nproc)
@@ -371,7 +412,7 @@ compile_msquic: check_msquic_dependencies update_submodule
 		$(TARGET)-objcopy $$renameSymbols ./dep/_msquic/out/$(TARGET)/bin/Release/libmsquic.a
 endif
 ifeq ($(TARGET_OS), mac)
-compile_msquic: check_msquic_dependencies update_submodule
+build_msquic: check_msquic_dependencies update_submodule
 	mkdir -p ./dep/_msquic/out/$(TARGET)
 	cmake -B./dep/_msquic/out/$(TARGET) -S./dep/_msquic -DQUIC_BUILD_SHARED=OFF -DCMAKE_TARGET_ARCHITECTURE=$(TARGET_CPU)
 	make -C./dep/_msquic/out/$(TARGET) -j$(shell sysctl -n hw.physicalcpu)

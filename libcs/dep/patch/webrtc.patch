@@ -20,3 +20,24 @@ index be3885d..229aa18 100644
    if (it == uri_to_id_.end()) {
      return RTCError(RTCErrorType::INVALID_PARAMETER,
                      "No ID found for extension");
+diff --git a/libcs/dep/_google-webrtc/src/third_party/libvpx/BUILD.gn b/libcs/dep/_google-webrtc/src/third_party/libvpx/BUILD.gn
+--- a/libcs/dep/_google-webrtc/src/third_party/libvpx/BUILD.gn
++++ b/libcs/dep/_google-webrtc/src/third_party/libvpx/BUILD.gn
+@@ -373,7 +373,7 @@
+   # SVE is disabled for Windows due to a limitation with clang-cl-18:
+   # third_party\llvm-build\Release+Asserts\lib\clang\18\include\arm_sve.h(271,1):
+   # error: cannot mangle this built-in __SVInt8_t type yet
+-  if (!is_win) {
++  if (is_clang && !is_win) {
+     source_set("libvpx_intrinsics_sve") {
+       check_includes = false
+       configs -= [ "//build/config/compiler:chromium_code" ]
+@@ -568,7 +568,7 @@
+   if (current_cpu == "arm64" || current_cpu == "arm64e") {
+     deps += [ ":libvpx_intrinsics_neon_dotprod" ]
+     deps += [ ":libvpx_intrinsics_neon_i8mm" ]
+-    if (!is_win) {
++    if (is_clang && !is_win) {
+       deps += [
+         ":libvpx_intrinsics_sve",
+         ":libvpx_intrinsics_sve2",

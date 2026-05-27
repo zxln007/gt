@@ -6,11 +6,25 @@ on:
     tags: [ '*.*.*' ]
   pull_request:
     branches: [ "*" ]
+  workflow_dispatch:
+    inputs:
+      use_prebuilt_msquic:
+        description: "Download prebuilt msquic archives instead of building msquic from source"
+        required: false
+        default: false
+        type: boolean
+      msquic_prebuilt_base_url:
+        description: "Base URL containing msquic-<target>.tar.gz archives"
+        required: false
+        type: string
 
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
   WITH_OFFICIAL_WEBRTC: 1
+  MSQUIC_ARTIFACT_TARGETS: x86_64-linux-gnu aarch64-linux-gnu riscv64-linux-gnu
+  USE_PREBUILT_MSQUIC: ${{ github.event.inputs.use_prebuilt_msquic || 'false' }}
+  MSQUIC_PREBUILT_BASE_URL: ${{ github.event.inputs.msquic_prebuilt_base_url || '' }}
 
 jobs:
 
@@ -113,11 +127,32 @@ jobs:
         with:
           go-version: 'stable'
 
+      - name: Download prebuilt msquic artifacts
+        if: env.USE_PREBUILT_MSQUIC == 'true'
+        run: |-
+          if [ -z "$MSQUIC_PREBUILT_BASE_URL" ]; then
+            echo "MSQUIC_PREBUILT_BASE_URL is required when USE_PREBUILT_MSQUIC=true"
+            exit 1
+          fi
+          for target in $MSQUIC_ARTIFACT_TARGETS; do
+            archive="msquic-${target}.tar.gz"
+            url="${MSQUIC_PREBUILT_BASE_URL%/}/${archive}"
+            dest="libcs/prebuilt/msquic/${target}"
+            echo "Downloading ${url}"
+            mkdir -p "$dest"
+            curl -fL "$url" -o "/tmp/${archive}"
+            tar -xzf "/tmp/${archive}" -C "$dest"
+          done
+
       - name: package-gt
         run: |-
           sudo apt-get update && sudo apt-get install make git gn ninja-build python3 python3-pip libgtk-3-dev gcc-aarch64-linux-gnu g++-aarch64-linux-gnu gcc-x86-64-linux-gnu g++-x86-64-linux-gnu gcc-riscv64-linux-gnu g++-riscv64-linux-gnu rustc upx -y
           rustup target add x86_64-unknown-linux-gnu aarch64-unknown-linux-gnu riscv64gc-unknown-linux-gnu
-          make
+          MAKE_ARGS=""
+          if [ "$USE_PREBUILT_MSQUIC" = "true" ]; then
+            MAKE_ARGS="MSQUIC_MODE=prebuilt"
+          fi
+          make $MAKE_ARGS
 
       - name: Archive GT artifacts
         uses: actions/upload-artifact@v4

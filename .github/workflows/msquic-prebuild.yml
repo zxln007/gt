@@ -1,0 +1,198 @@
+name: msquic prebuild
+
+on:
+  workflow_dispatch:
+  push:
+    tags:
+      - 'msquic-*'
+
+jobs:
+  build-msquic-linux:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-linux-gnu
+            gcc_package: gcc-x86-64-linux-gnu
+            gxx_package: g++-x86-64-linux-gnu
+            binutils_package: binutils-x86-64-linux-gnu
+            arch: amd64
+          - target: aarch64-linux-gnu
+            gcc_package: gcc-aarch64-linux-gnu
+            gxx_package: g++-aarch64-linux-gnu
+            binutils_package: binutils-aarch64-linux-gnu
+            arch: arm64
+          - target: riscv64-linux-gnu
+            gcc_package: gcc-riscv64-linux-gnu
+            gxx_package: g++-riscv64-linux-gnu
+            binutils_package: binutils-riscv64-linux-gnu
+            arch: riscv64
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install build dependencies
+        run: |-
+          sudo apt-get update
+          sudo apt-get install -y make git cmake \
+            ${{ matrix.gcc_package }} \
+            ${{ matrix.gxx_package }} \
+            ${{ matrix.binutils_package }}
+
+      - name: Build msquic
+        run: |-
+          cd libcs
+          make build_msquic TARGET=${{ matrix.target }} MSQUIC_MODE=build
+
+      - name: Package msquic artifact
+        run: |-
+          artifact_root="$RUNNER_TEMP/msquic-${{ matrix.target }}"
+          mkdir -p "$artifact_root/include" "$artifact_root/lib"
+          cp -a libcs/dep/_msquic/src/inc/. "$artifact_root/include/"
+          cp "libcs/dep/_msquic/out/${{ matrix.target }}/bin/Release/libmsquic.a" "$artifact_root/lib/"
+          cat > "$artifact_root/metadata.json" <<EOF
+          {
+            "name": "msquic",
+            "artifact_version": 1,
+            "target": "${{ matrix.target }}",
+            "os": "linux",
+            "arch": "${{ matrix.arch }}",
+            "library_type": "static",
+            "rename_symbols_applied": true,
+            "msquic_commit": "$(git -C libcs/dep/_msquic rev-parse HEAD)",
+            "built_by": "github-actions"
+          }
+          EOF
+          tar -C "$artifact_root" -czf "$RUNNER_TEMP/msquic-${{ matrix.target }}.tar.gz" .
+
+      - name: Upload msquic archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: msquic-${{ matrix.target }}
+          path: ${{ runner.temp }}/msquic-${{ matrix.target }}.tar.gz
+
+  build-msquic-macos:
+    runs-on: macos-14
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            arch: arm64
+          - target: x86_64-apple-darwin
+            arch: amd64
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Install build dependencies
+        run: |-
+          brew install cmake llvm binutils
+          echo "$(brew --prefix llvm)/bin" >> "$GITHUB_PATH"
+          echo "$(brew --prefix binutils)/bin" >> "$GITHUB_PATH"
+
+      - name: Build msquic
+        run: |-
+          cd libcs
+          make build_msquic TARGET=${{ matrix.target }} MSQUIC_MODE=build
+
+      - name: Package msquic artifact
+        run: |-
+          artifact_root="$RUNNER_TEMP/msquic-${{ matrix.target }}"
+          mkdir -p "$artifact_root/include" "$artifact_root/lib"
+          cp -a libcs/dep/_msquic/src/inc/. "$artifact_root/include/"
+          cp "libcs/dep/_msquic/out/${{ matrix.target }}/bin/Release/libmsquic.a" "$artifact_root/lib/"
+          cat > "$artifact_root/metadata.json" <<EOF
+          {
+            "name": "msquic",
+            "artifact_version": 1,
+            "target": "${{ matrix.target }}",
+            "os": "macos",
+            "arch": "${{ matrix.arch }}",
+            "library_type": "static",
+            "rename_symbols_applied": true,
+            "msquic_commit": "$(git -C libcs/dep/_msquic rev-parse HEAD)",
+            "built_by": "github-actions"
+          }
+          EOF
+          tar -C "$artifact_root" -czf "$RUNNER_TEMP/msquic-${{ matrix.target }}.tar.gz" .
+
+      - name: Upload msquic archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: msquic-${{ matrix.target }}
+          path: ${{ runner.temp }}/msquic-${{ matrix.target }}.tar.gz
+
+  build-msquic-windows:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-pc-windows-msvc
+            arch: amd64
+            output_lib: libcs/dep/_msquic/build/windows/x64_schannel/obj/Release/msquic.lib
+            artifact_lib_name: msquic.lib
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up MSVC Developer Command Prompt
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Set up .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Set up CMake
+        uses: jwlawson/actions-setup-cmake@v2
+
+      - name: Build msquic
+        shell: pwsh
+        run: |-
+          Set-Location libcs/dep/_msquic
+          ./scripts/build.ps1 -Config Release -Static -DisableTest -DisableTools -StaticCRT
+
+      - name: Package msquic artifact
+        shell: pwsh
+        run: |-
+          $artifactRoot = Join-Path $env:RUNNER_TEMP 'msquic-${{ matrix.target }}'
+          $includeDir = Join-Path $artifactRoot 'include'
+          $libDir = Join-Path $artifactRoot 'lib'
+          New-Item -ItemType Directory -Force -Path $includeDir | Out-Null
+          New-Item -ItemType Directory -Force -Path $libDir | Out-Null
+          Copy-Item -Path 'libcs/dep/_msquic/src/inc/*' -Destination $includeDir -Recurse -Force
+          Copy-Item -Path '${{ matrix.output_lib }}' -Destination (Join-Path $libDir '${{ matrix.artifact_lib_name }}') -Force
+          $metadata = @{
+            name = 'msquic'
+            artifact_version = 1
+            target = '${{ matrix.target }}'
+            os = 'windows'
+            arch = '${{ matrix.arch }}'
+            library_type = 'static'
+            rename_symbols_applied = $false
+            msquic_commit = (git -C libcs/dep/_msquic rev-parse HEAD)
+            built_by = 'github-actions'
+          } | ConvertTo-Json
+          Set-Content -Path (Join-Path $artifactRoot 'metadata.json') -Value $metadata -Encoding utf8
+          tar -C $artifactRoot -czf (Join-Path $env:RUNNER_TEMP 'msquic-${{ matrix.target }}.tar.gz') .
+
+      - name: Upload msquic archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: msquic-${{ matrix.target }}
+          path: ${{ runner.temp }}/msquic-${{ matrix.target }}.tar.gz
