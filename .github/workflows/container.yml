@@ -9,14 +9,6 @@ on:
 
 env:
   REGISTRY: ghcr.io
-  EULIX_REGISTRY: hub.eulix.xyz
-  HUAWEICLOUD_REGISTRY_SH: swr.cn-east-3.myhuaweicloud.com
-  HUAWEICLOUD_REGISTRY_BJ: swr.cn-north-4.myhuaweicloud.com
-  HUAWEICLOUD_REGISTRY_GZ: swr.cn-south-1.myhuaweicloud.com
-  HUAWEICLOUD_REGISTRY_HK: swr.ap-southeast-1.myhuaweicloud.com
-  HUAWEICLOUD_REGISTRY_SG: swr.ap-southeast-3.myhuaweicloud.com
-  HUAWEICLOUD_REGISTRY_AF: swr.af-south-1.myhuaweicloud.com
-  HUAWEICLOUD_REGISTRY_LA: swr.la-north-2.myhuaweicloud.com
   IMAGE_NAME: ${{ github.repository }}
 
 jobs:
@@ -35,86 +27,34 @@ jobs:
         run: |-
           Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' -Name 'LongPathsEnabled' -Value 1
           git config --system core.longpaths true
-          
-          echo "--------------------Install Microsoft.UI.Xaml-------------------"
-          $SourceUrl = "https://www.nuget.org/api/v2/package/Microsoft.UI.Xaml/2.8.6"
-          $DestinationFile = ".\microsoft.ui.xaml.zip" # 保存到当前目录并保持.nupkg扩展名
-          $ExtractDirectory = ".\uixaml"
-          # 创建目标解压目录（如果不存在）
-          if (!(Test-Path -Path $ExtractDirectory)) {
-              New-Item -ItemType Directory -Path $ExtractDirectory | Out-Null
-          }
-          # 下载.nupkg文件
-          Invoke-WebRequest -Uri $SourceUrl -OutFile $DestinationFile
-          # 解压.nupkg文件到指定目录（PowerShell 5.0及以上版本支持）
-          Expand-Archive -Path $DestinationFile -DestinationPath $ExtractDirectory
-          Copy-Item -Path .\uixaml\tools\AppX\x64\Release\Microsoft.UI.Xaml.2.8.appx -Destination .
-          Add-AppxPackage -Path .\Microsoft.UI.Xaml.2.8.appx
-          
-          echo "------------------------Install vclibs--------------------------"
-          Invoke-WebRequest -Uri 'https://aka.ms/Microsoft.VCLibs.x64.14.00.Desktop.appx' -OutFile '.\Microsoft.VCLibs.x64.14.00.Desktop.appx'
-          Add-AppxPackage -Path .\Microsoft.VCLibs.x64.14.00.Desktop.appx
-          
-          echo "---------------------Install winget------------------------"
-          Invoke-WebRequest -Uri 'https://github.com/microsoft/winget-cli/releases/download/v1.7.11261/64b03c63cd5d4be8a28e8a271ff853cc_License1.xml' -OutFile '.\License1.xml'
-          Invoke-WebRequest -Uri 'https://github.com/microsoft/winget-cli/releases/download/v1.7.11261/Microsoft.DesktopAppInstaller_8wekyb3d8bbwe.msixbundle' -OutFile '.\Microsoft.DesktopAppInstaller.msixbundle' 
-          Add-AppxPackage .\Microsoft.DesktopAppInstaller.msixbundle
-          Add-AppxProvisionedPackage -Online -Package .\Microsoft.DesktopAppInstaller.msixbundle -LicensePath  .\License1.xml
-          
-          echo "---------------Install VisualStudio 2022---------------------- "
-          winget install --source winget --id Microsoft.VisualStudio.2022.Community --override "--quiet --add Microsoft.VisualStudio.Component.CoreEditor --add Microsoft.VisualStudio.Workload.CoreEditor --add Microsoft.VisualStudio.Component.TypeScript.TSServer --add Microsoft.VisualStudio.ComponentGroup.WebToolsExtensions --add Microsoft.VisualStudio.Component.JavaScript.TypeScript --add Microsoft.VisualStudio.Component.Roslyn.Compiler --add Microsoft.Component.MSBuild --add Microsoft.VisualStudio.Component.Roslyn.LanguageServices --add Microsoft.VisualStudio.Component.TextTemplating --add Microsoft.VisualStudio.Component.NuGet --add Microsoft.VisualStudio.Component.Debugger.JustInTime --add Component.Microsoft.VisualStudio.LiveShare.2022 --add Microsoft.VisualStudio.Component.IntelliCode --add Microsoft.VisualStudio.Component.VC.CoreIde --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --add Microsoft.VisualStudio.Component.Graphics.Tools --add Microsoft.VisualStudio.Component.VC.DiagnosticTools --add Microsoft.VisualStudio.Component.Windows11SDK.22621 --add Microsoft.VisualStudio.Component.VC.ATL --add Microsoft.VisualStudio.Component.SecurityIssueAnalysis --add Microsoft.VisualStudio.Component.VC.ATLMFC --add Microsoft.VisualStudio.Component.VC.Modules.x86.x64 --add Component.IncredibuildMenu --add Component.Incredibuild --add Microsoft.VisualStudio.Component.VC.Redist.14.Latest --add Microsoft.VisualStudio.ComponentGroup.NativeDesktop.Core --add Microsoft.VisualStudio.Component.Windows11Sdk.WindowsPerformanceToolkit --add Microsoft.VisualStudio.Component.CppBuildInsights --add Microsoft.VisualStudio.ComponentGroup.WebToolsExtensions.CMake --add Microsoft.VisualStudio.Component.VC.CMake.Project --add Microsoft.VisualStudio.Component.VC.TestAdapterForBoostTest --add Microsoft.VisualStudio.Component.VC.TestAdapterForGoogleTest --add Microsoft.VisualStudio.Component.VC.ASAN --add Microsoft.VisualStudio.Component.Vcpkg --add Microsoft.VisualStudio.Component.VC.Llvm.ClangToolset --add Microsoft.VisualStudio.Component.VC.Llvm.Clang --add Microsoft.VisualStudio.ComponentGroup.NativeDesktop.Llvm.Clang --add Microsoft.VisualStudio.Workload.NativeDesktop"
-          winget install --source winget --id Microsoft.VisualStudio.2022.Community --override "--quiet --add Microsoft.VisualStudio.Component.CoreEditor --add Microsoft.VisualStudio.Workload.CoreEditor --add Microsoft.VisualStudio.Component.TypeScript.TSServer --add Microsoft.VisualStudio.ComponentGroup.WebToolsExtensions --add Microsoft.VisualStudio.Component.JavaScript.TypeScript --add Microsoft.VisualStudio.Component.Roslyn.Compiler --add Microsoft.Component.MSBuild --add Microsoft.VisualStudio.Component.Roslyn.LanguageServices --add Microsoft.VisualStudio.Component.TextTemplating --add Microsoft.VisualStudio.Component.NuGet --add Microsoft.VisualStudio.Component.Debugger.JustInTime --add Component.Microsoft.VisualStudio.LiveShare.2022 --add Microsoft.VisualStudio.Component.IntelliCode --add Microsoft.VisualStudio.Component.VC.CoreIde --add Microsoft.VisualStudio.Component.VC.Tools.x86.x64 --add Microsoft.VisualStudio.Component.Graphics.Tools --add Microsoft.VisualStudio.Component.VC.DiagnosticTools --add Microsoft.VisualStudio.Component.Windows11SDK.22621 --add Microsoft.VisualStudio.Component.VC.ATL --add Microsoft.VisualStudio.Component.SecurityIssueAnalysis --add Microsoft.VisualStudio.Component.VC.ATLMFC --add Microsoft.VisualStudio.Component.VC.Modules.x86.x64 --add Component.IncredibuildMenu --add Component.Incredibuild --add Microsoft.VisualStudio.Component.VC.Redist.14.Latest --add Microsoft.VisualStudio.ComponentGroup.NativeDesktop.Core --add Microsoft.VisualStudio.Component.Windows11Sdk.WindowsPerformanceToolkit --add Microsoft.VisualStudio.Component.CppBuildInsights --add Microsoft.VisualStudio.ComponentGroup.WebToolsExtensions.CMake --add Microsoft.VisualStudio.Component.VC.CMake.Project --add Microsoft.VisualStudio.Component.VC.TestAdapterForBoostTest --add Microsoft.VisualStudio.Component.VC.TestAdapterForGoogleTest --add Microsoft.VisualStudio.Component.VC.ASAN --add Microsoft.VisualStudio.Component.Vcpkg --add Microsoft.VisualStudio.Component.VC.Llvm.ClangToolset --add Microsoft.VisualStudio.Component.VC.Llvm.Clang --add Microsoft.VisualStudio.ComponentGroup.NativeDesktop.Llvm.Clang --add Microsoft.VisualStudio.Workload.NativeDesktop"
-          
-          
-          echo "----------------------Install sdk 8-------------------------------"
-          winget install --source winget --id Microsoft.DotNet.SDK.8 
-          
-          echo "----------------------Install DesktopRuntime.8--------------------------"
-          winget install --source winget --id Microsoft.DotNet.DesktopRuntime.8 
-          
-          echo "---------------------Install cmake--------------------------"
-          winget install --source winget --id Kitware.CMake  -e
-          
-          echo "--------------------Install Ninja-build.Ninja ---------------------------"
-          winget install --source winget --id  Ninja-build.Ninja 
-          
-          echo "--------------------Waiting Install VisualStudio 2022--------------------------------- "
-          # 循环判断目录数量是否大于等于 14
-          $targetDirectory = "C:\Program Files\Microsoft Visual Studio\2022\Community"
-          while (!(Test-Path $targetDirectory)) {
-              Write-Host "The directory does not exist, wait for 1 minute..."
-              Start-Sleep -Seconds 60
-          }
-          while (((Get-ChildItem -Path $targetDirectory -Directory).Count -lt 14)) {
-              Write-Host "The number of directories is less than 14, wait for 1 minute...."
-              Start-Sleep -Seconds 60
-          }
-          Get-ChildItem -Path  $targetDirectory
-          Write-Host "-------------------------Visual Studio 2022 installation completed----------------------------"
-
-
-
 
       - uses: actions/checkout@v3
         with:
           submodules: recursive
 
+      - name: Set up MSVC Developer Command Prompt
+        uses: ilammy/msvc-dev-cmd@v1
 
       - name: Set up Go
         uses: actions/setup-go@v4
         with:
           go-version: 'stable'
 
+      - name: Set up GN
+        shell: pwsh
+        run: |-
+          New-Item -ItemType Directory -Force -Path '.\gn-bin'
+          Invoke-WebRequest -Uri 'https://chrome-infra-packages.appspot.com/dl/gn/gn/windows-amd64/+/latest' -OutFile '.\gn-windows-amd64.zip'
+          Expand-Archive -Path '.\gn-windows-amd64.zip' -DestinationPath '.\gn-bin'
+          echo "$(Get-Item .\gn-bin | Select-Object -ExpandProperty FullName)" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
 
       - name: Building Windows Package
         shell: pwsh
         run: |-
-          Rename-Item -Path 'D:\a\gt\gt\libcs\dep\_google-webrtc\src\third_party\llvm-build\Release+Asserts.win'   -NewName  'D:\a\gt\gt\libcs\dep\_google-webrtc\src\third_party\llvm-build\Release+Asserts' 
-          Get-ChildItem -Path 'D:\a\gt\gt\libcs\dep\_google-webrtc\src\third_party\llvm-build\'
-          Get-ChildItem -Path 'D:\a\gt\gt\libcs\dep\_google-webrtc\src\third_party\llvm-build\Release+Asserts\'
-          Invoke-WebRequest -Uri 'https://chrome-infra-packages.appspot.com/dl/gn/gn/windows-amd64/+/latest' -OutFile '.\gn-windows-amd64.zip'
-          Expand-Archive -Path '.\gn-windows-amd64.zip' -DestinationPath 'C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja'
-          Get-ChildItem -Path 'C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja\'
+          if (Test-Path 'libcs\dep\_google-webrtc\src\third_party\llvm-build\Release+Asserts.win') {
+              Rename-Item -Path 'libcs\dep\_google-webrtc\src\third_party\llvm-build\Release+Asserts.win' -NewName 'Release+Asserts'
+          }
+          Get-ChildItem -Path 'libcs\dep\_google-webrtc\src\third_party\llvm-build\'
           
           echo "-----------------------Compilation package---------------------"
           & '.\build.ps1'
@@ -128,7 +68,7 @@ jobs:
 
 
   build-linux:
-    runs-on: ubuntu-22.04
+    runs-on: ubuntu-latest
     permissions:
       contents: read
       packages: write
@@ -191,92 +131,12 @@ jobs:
           username: ${{ github.actor }}
           password: ${{ secrets.GITHUB_TOKEN }}
 
-      - name: Log into registry ${{ env.EULIX_REGISTRY }}
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v2
-        with:
-          registry: ${{ env.EULIX_REGISTRY }}
-          username: ${{ secrets.EULIX_REGISTRY_USERNAME }}
-          password: ${{ secrets.EULIX_REGISTRY_PASSWORD }}
-
-      - name: Log into registry Docker Hub
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v2
-        with:
-          username: ${{ secrets.DOCKER_HUB_REGISTRY_USERNAME }}
-          password: ${{ secrets.DOCKER_HUB_REGISTRY_PASSWORD }}
-
-      - name: Log into registry ${{ env.HUAWEICLOUD_REGISTRY_SH }}
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v2
-        with:
-          registry: ${{ env.HUAWEICLOUD_REGISTRY_SH }}
-          username: cn-east-3@${{ secrets.HUAWEICLOUD_USERNAME }}
-          password: ${{ secrets.HUAWEICLOUD_PASSWORD }}
-
-      - name: Log into registry ${{ env.HUAWEICLOUD_REGISTRY_BJ }}
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v2
-        with:
-          registry: ${{ env.HUAWEICLOUD_REGISTRY_BJ }}
-          username: cn-north-4@${{ secrets.HUAWEICLOUD_USERNAME }}
-          password: ${{ secrets.HUAWEICLOUD_PASSWORD }}
-
-      - name: Log into registry ${{ env.HUAWEICLOUD_REGISTRY_GZ }}
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v2
-        with:
-          registry: ${{ env.HUAWEICLOUD_REGISTRY_GZ }}
-          username: cn-south-1@${{ secrets.HUAWEICLOUD_USERNAME }}
-          password: ${{ secrets.HUAWEICLOUD_PASSWORD }}
-
-      - name: Log into registry ${{ env.HUAWEICLOUD_REGISTRY_SG }}
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v2
-        with:
-          registry: ${{ env.HUAWEICLOUD_REGISTRY_SG }}
-          username: ap-southeast-3@${{ secrets.HUAWEICLOUD_USERNAME }}
-          password: ${{ secrets.HUAWEICLOUD_PASSWORD }}
-
-      - name: Log into registry ${{ env.HUAWEICLOUD_REGISTRY_HK }}
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v2
-        with:
-          registry: ${{ env.HUAWEICLOUD_REGISTRY_HK }}
-          username: ap-southeast-1@${{ secrets.HUAWEICLOUD_USERNAME }}
-          password: ${{ secrets.HUAWEICLOUD_PASSWORD }}
-
-      - name: Log into registry ${{ env.HUAWEICLOUD_REGISTRY_AF }}
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v2
-        with:
-          registry: ${{ env.HUAWEICLOUD_REGISTRY_AF }}
-          username: af-south-1@${{ secrets.HUAWEICLOUD_USERNAME }}
-          password: ${{ secrets.HUAWEICLOUD_PASSWORD }}
-
-      - name: Log into registry ${{ env.HUAWEICLOUD_REGISTRY_LA }}
-        if: github.event_name != 'pull_request'
-        uses: docker/login-action@v2
-        with:
-          registry: ${{ env.HUAWEICLOUD_REGISTRY_LA }}
-          username: la-north-2@${{ secrets.HUAWEICLOUD_USERNAME }}
-          password: ${{ secrets.HUAWEICLOUD_PASSWORD }}
-
       - name: Extract Docker metadata for Server
         id: meta-server
         uses: docker/metadata-action@v2
         with:
           images: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-            ${{ env.EULIX_REGISTRY }}/${{ env.IMAGE_NAME }}
-            aospace/${{ env.GITHUB_REPOSITORY_NAME }}
-            ${{ env.HUAWEICLOUD_REGISTRY_SH }}/${{ env.IMAGE_NAME }}
-            ${{ env.HUAWEICLOUD_REGISTRY_BJ }}/${{ env.IMAGE_NAME }}
-            ${{ env.HUAWEICLOUD_REGISTRY_GZ }}/${{ env.IMAGE_NAME }}
-            ${{ env.HUAWEICLOUD_REGISTRY_HK }}/${{ env.IMAGE_NAME }}
-            ${{ env.HUAWEICLOUD_REGISTRY_SG }}/${{ env.IMAGE_NAME }}
-            ${{ env.HUAWEICLOUD_REGISTRY_AF }}/${{ env.IMAGE_NAME }}
-            ${{ env.HUAWEICLOUD_REGISTRY_LA }}/${{ env.IMAGE_NAME }}
           flavor: |
             prefix=server-
 
@@ -289,7 +149,7 @@ jobs:
           tags: ${{ steps.meta-server.outputs.tags }}
           labels: ${{ steps.meta-server.outputs.labels }}
           builder: ${{ steps.buildx.outputs.name }}
-          platforms: linux/amd64,linux/arm64,linux/riscv64
+          platforms: linux/amd64,linux/arm64 #,linux/riscv64
           cache-from: type=gha
           cache-to: type=gha,mode=max
           file: Dockerfile-server
@@ -301,15 +161,6 @@ jobs:
         with:
           images: |
             ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
-            ${{ env.EULIX_REGISTRY }}/${{ env.IMAGE_NAME }}
-            aospace/${{ env.GITHUB_REPOSITORY_NAME }}
-            ${{ env.HUAWEICLOUD_REGISTRY_SH }}/${{ env.IMAGE_NAME }}
-            ${{ env.HUAWEICLOUD_REGISTRY_BJ }}/${{ env.IMAGE_NAME }}
-            ${{ env.HUAWEICLOUD_REGISTRY_GZ }}/${{ env.IMAGE_NAME }}
-            ${{ env.HUAWEICLOUD_REGISTRY_HK }}/${{ env.IMAGE_NAME }}
-            ${{ env.HUAWEICLOUD_REGISTRY_SG }}/${{ env.IMAGE_NAME }}
-            ${{ env.HUAWEICLOUD_REGISTRY_AF }}/${{ env.IMAGE_NAME }}
-            ${{ env.HUAWEICLOUD_REGISTRY_LA }}/${{ env.IMAGE_NAME }}
           flavor: |
             prefix=client-
 
@@ -322,57 +173,11 @@ jobs:
           tags: ${{ steps.meta-client.outputs.tags }}
           labels: ${{ steps.meta-client.outputs.labels }}
           builder: ${{ steps.buildx.outputs.name }}
-          platforms: linux/amd64,linux/arm64,linux/riscv64
+          platforms: linux/amd64,linux/arm64 #,linux/riscv64
           cache-from: type=gha
           cache-to: type=gha,mode=max
           file: Dockerfile-client
           provenance: false
-
-      - name: Extract Docker metadata for Server
-        id: meta-opensource-server
-        uses: docker/metadata-action@v2
-        with:
-          images: |
-            ${{ env.EULIX_REGISTRY }}/cicada-private/aonetwork-server
-          flavor: |
-            prefix=opensource-server-
-
-      - name: Build and push Docker image for Server
-        id: build-and-push-opensource-server
-        uses: docker/build-push-action@v2
-        with:
-          context: .
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta-opensource-server.outputs.tags }}
-          labels: ${{ steps.meta-opensource-server.outputs.labels }}
-          builder: ${{ steps.buildx.outputs.name }}
-          platforms: linux/amd64,linux/arm64,linux/riscv64
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          file: Dockerfile-server
-
-      - name: Extract Docker metadata for Client
-        id: meta-opensource-client
-        uses: docker/metadata-action@v2
-        with:
-          images: |
-            ${{ env.EULIX_REGISTRY }}/cicada-private/aonetwork-client
-          flavor: |
-            prefix=opensource-client-
-
-      - name: Build and push Docker image for Client
-        id: build-and-push-opensource-client
-        uses: docker/build-push-action@v2
-        with:
-          context: .
-          push: ${{ github.event_name != 'pull_request' }}
-          tags: ${{ steps.meta-opensource-client.outputs.tags }}
-          labels: ${{ steps.meta-opensource-client.outputs.labels }}
-          builder: ${{ steps.buildx.outputs.name }}
-          platforms: linux/amd64,linux/arm64,linux/riscv64
-          cache-from: type=gha
-          cache-to: type=gha,mode=max
-          file: Dockerfile-client
 
   build-macos:
     runs-on: macos-14

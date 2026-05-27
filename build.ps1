@@ -12,24 +12,53 @@ $env:CGO_LDFLAGS="-L$MSQUIC_DIR/build/windows/x64_schannel/obj/Release -L$WEBRTC
 $env:CARGO_CFG_TARGET_OS="windows"
 $env:RUSTFLAGS="-L $MSQUIC_OUT_DIR -l msquic -L $WEBRTC_OUT_DIR -l webrtc"
 
+# Dynamically detect Visual Studio installation path
+$vsPath = ""
+if ($env:VCINSTALLDIR) {
+    # If already in MSVC Developer environment, extract VS base path from VCINSTALLDIR
+    $vsPath = $env:VCINSTALLDIR
+    if ($vsPath.EndsWith("\VC\")) {
+        $vsPath = $vsPath.Substring(0, $vsPath.Length - 4)
+    } elseif ($vsPath.EndsWith("\VC")) {
+        $vsPath = $vsPath.Substring(0, $vsPath.Length - 3)
+    } else {
+        $vsPath = Split-Path $vsPath -Parent
+    }
+} else {
+    $vsWherePath = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+    if (Test-Path $vsWherePath) {
+        $vsPath = & $vsWherePath -latest -property installationPath
+    }
+}
+
+if (-not $vsPath) {
+    # Fallback to Community if not detected
+    $vsPath = "C:\Program Files\Microsoft Visual Studio\2022\Community"
+}
+Write-Host "Using Visual Studio installation path: $vsPath"
+
 $env:DEPOT_TOOLS_WIN_TOOLCHAIN="0"
 $env:GYP_GENERATORS="msvs-ninja,ninja"
-$env:GYP_MSVS_OVERRIDE_PATH="C:\Program Files\Microsoft Visual Studio\2022\Community"
+$env:GYP_MSVS_OVERRIDE_PATH=$vsPath
 $env:GYP_MSVS_VERSION="2022"
-$env:PATH+=";C:\Program Files\Microsoft Visual Studio\2022\Community\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja"
-# 检查 Pscx 模块是否已安装
-if (-not (Get-Module -Name Pscx -ListAvailable)) {
-    Write-Host "安装Pscx PowerShell插件"
-    Install-Module -Name Pscx -AllowPrerelease -Force
-}
+$env:PATH+=";$vsPath\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja"
 
-# 检查 VSSetup 模块是否已安装
-if (-not (Get-Module -Name VSSetup -ListAvailable)) {
-    Write-Host "安装VSSetup PowerShell插件"
-    Install-Module -Name VSSetup -AllowPrerelease -Force
+# Only load/import Visual Studio environment variables if not already in MSVC Developer Command Prompt
+if (-not $env:VCINSTALLDIR) {
+    # 检查 Pscx 模块是否已安装
+    if (-not (Get-Module -Name Pscx -ListAvailable)) {
+        Write-Host "安装Pscx PowerShell插件"
+        Install-Module -Name Pscx -AllowPrerelease -Force -Scope CurrentUser
+    }
+    
+    # 检查 VSSetup 模块是否已安装
+    if (-not (Get-Module -Name VSSetup -ListAvailable)) {
+        Write-Host "安装VSSetup PowerShell插件"
+        Install-Module -Name VSSetup -AllowPrerelease -Force -Scope CurrentUser
+    }
+    
+    Import-VisualStudioVars 2022 amd64
 }
-
-Import-VisualStudioVars 2022 amd64
 
 Set-Location $WORK_DIR
 function complie_webrtc{

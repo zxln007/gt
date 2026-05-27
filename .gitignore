@@ -55,3 +55,12 @@ server/web/dist
 client/web/dist
 
 /libcs/msvc-build/target
+.claude/
+desktop/.tmp-*
+
+# Wails 3 Desktop build and runtime artifacts
+desktop/.task/
+desktop/bin/
+desktop/*.exe
+desktop/frontend/node_modules/
+desktop/frontend/dist/

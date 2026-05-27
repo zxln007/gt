@@ -14,7 +14,7 @@
 
 [submodule "dep/_google-webrtc"]
 	path = libcs/dep/_google-webrtc
-	url = https://git.mirror.iscas.ac.cn/ao-space/google-webrtc.git
+	url = https://webrtc.googlesource.com/src.git
 	branch = main
 	shallow = true
 	ignore = dirty
