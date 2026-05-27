@@ -10,6 +10,7 @@ on:
 env:
   REGISTRY: ghcr.io
   IMAGE_NAME: ${{ github.repository }}
+  WITH_OFFICIAL_WEBRTC: 1
 
 jobs:
 
@@ -32,6 +33,16 @@ jobs:
         with:
           submodules: recursive
 
+      - name: Sync WebRTC Dependencies
+        shell: pwsh
+        run: |-
+          git clone --depth=1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
+          $env:PATH = "$(pwd)\depot_tools;" + $env:PATH
+          echo "$(pwd)\depot_tools" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          cd libcs/dep/_google-webrtc
+          gclient config --spec 'solutions = [ { "name": "src", "url": "https://webrtc.googlesource.com/src.git", "managed": False, "custom_deps": {}, }, ]'
+          gclient sync --nohooks --no-history --shallow
+
       - name: Set up MSVC Developer Command Prompt
         uses: ilammy/msvc-dev-cmd@v1
 
@@ -51,11 +62,7 @@ jobs:
       - name: Building Windows Package
         shell: pwsh
         run: |-
-          if (Test-Path 'libcs\dep\_google-webrtc\src\third_party\llvm-build\Release+Asserts.win') {
-              Rename-Item -Path 'libcs\dep\_google-webrtc\src\third_party\llvm-build\Release+Asserts.win' -NewName 'Release+Asserts'
-          }
-          Get-ChildItem -Path 'libcs\dep\_google-webrtc\src\third_party\llvm-build\'
-          
+          python libcs/dep/_google-webrtc/src/tools/clang/scripts/update.py
           echo "-----------------------Compilation package---------------------"
           & '.\build.ps1'
 
@@ -85,6 +92,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+
+      - name: Sync WebRTC Dependencies
+        run: |-
+          git clone --depth=1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
+          export PATH=$PWD/depot_tools:$PATH
+          echo "$PWD/depot_tools" >> $GITHUB_PATH
+          cd libcs/dep/_google-webrtc
+          gclient config --spec 'solutions = [ { "name": "src", "url": "https://webrtc.googlesource.com/src.git", "managed": False, "custom_deps": {}, }, ]'
+          gclient sync --nohooks --no-history --shallow
 
       - name: Set up Go
         uses: actions/setup-go@v4
@@ -198,6 +214,15 @@ jobs:
       - uses: actions/checkout@v4
         with:
           submodules: recursive
+
+      - name: Sync WebRTC Dependencies
+        run: |-
+          git clone --depth=1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
+          export PATH=$PWD/depot_tools:$PATH
+          echo "$PWD/depot_tools" >> $GITHUB_PATH
+          cd libcs/dep/_google-webrtc
+          gclient config --spec 'solutions = [ { "name": "src", "url": "https://webrtc.googlesource.com/src.git", "managed": False, "custom_deps": {}, }, ]'
+          gclient sync --nohooks --no-history --shallow
 
 
       - name: Set up Go

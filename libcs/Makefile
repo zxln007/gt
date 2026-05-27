@@ -69,13 +69,6 @@ ifeq ($(TARGET_OS), apple)
 	endif
 	DEF_WEBRTC_COND?=-DWEBRTC_MAC -DWEBRTC_POSIX
 	DEF_LDFLAGS?=-framework Cocoa
-	_SETUP_LLVM:=$(shell rm dep/_google-webrtc/src/third_party/llvm-build/Release+Asserts 2> /dev/null)
-	_HOST_ARCH:=$(shell uname -m)
-	ifeq ($(_HOST_ARCH), arm64)
-		_SETUP_LLVM:=$(shell ln -s ./Release+Asserts.mac_arm64 dep/_google-webrtc/src/third_party/llvm-build/Release+Asserts)
-	else
-		_SETUP_LLVM:=$(shell ln -s ./Release+Asserts.mac dep/_google-webrtc/src/third_party/llvm-build/Release+Asserts)
-	endif
 endif
 ifeq ($(TARGET_CPU), native)
 	TARGET_CPU=
@@ -326,6 +319,7 @@ compile_webrtc: check_webrtc_dependencies update_submodule
 endif
 ifeq ($(TARGET_OS), mac)
 compile_webrtc: check_webrtc_dependencies update_submodule
+	python3 ./dep/_google-webrtc/src/tools/clang/scripts/update.py
 	cd ./dep/_google-webrtc/src && gn gen out/release-$(TARGET) --args=" \
         clang_use_chrome_plugins=false \
         use_xcode_clang=false \
