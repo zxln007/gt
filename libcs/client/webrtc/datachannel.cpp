@@ -13,6 +13,8 @@
 // limitations under the License.
 
 #include <api/data_channel_interface.h>
+#include <rtc_base/copy_on_write_buffer.h>
+#include <sstream>
 
 #include "datachannel.h"
 #include "datachannel.hpp"

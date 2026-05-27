@@ -16,7 +16,12 @@
 #include <sstream>
 
 #include <api/create_peerconnection_factory.h>
+#include <api/create_modular_peer_connection_factory.h>
 #include <api/data_channel_interface.h>
+#include <api/peer_connection_interface.h>
+#include <api/scoped_refptr.h>
+#include <api/make_ref_counted.h>
+#include <rtc_base/thread.h>
 
 #include "datachannel.hpp"
 #include "peerconnection.h"
@@ -124,20 +129,20 @@ class PeerConnectionObserver : public webrtc::PeerConnectionObserver {
                 void *signalingThreadOutside, void *networkThreadOutside,
                 void *workerThreadOutside) {
         if (signalingThreadOutside == nullptr) {
-            ownedSignalingThread = rtc::Thread::Create();
+            ownedSignalingThread = webrtc::Thread::Create();
             auto ok = ownedSignalingThread->Start();
             if (!ok) {
                 return (char *)"signalingThread start failed";
             }
             signalingThread = ownedSignalingThread.get();
         } else {
-            signalingThread = (rtc::Thread *)signalingThreadOutside;
+            signalingThread = (webrtc::Thread *)signalingThreadOutside;
         }
 
         webrtc::PeerConnectionFactoryDependencies dependencies;
         dependencies.signaling_thread = signalingThread;
-        dependencies.network_thread = (rtc::Thread *)networkThreadOutside;
-        dependencies.worker_thread = (rtc::Thread *)workerThreadOutside;
+        dependencies.network_thread = (webrtc::Thread *)networkThreadOutside;
+        dependencies.worker_thread = (webrtc::Thread *)workerThreadOutside;
         auto peerConnectionFactory =
             webrtc::CreateModularPeerConnectionFactory(std::move(dependencies));
 
@@ -330,8 +335,8 @@ class PeerConnectionObserver : public webrtc::PeerConnectionObserver {
 
   private:
     rtc::scoped_refptr<webrtc::PeerConnectionInterface> peerConnection;
-    rtc::Thread *signalingThread;
-    std::unique_ptr<rtc::Thread> ownedSignalingThread;
+    webrtc::Thread *signalingThread;
+    std::unique_ptr<webrtc::Thread> ownedSignalingThread;
     rtc::scoped_refptr<CreateOfferObserver> createOfferObserver;
     rtc::scoped_refptr<CreateAnswerObserver> createAnswerObserver;
     void *userData;

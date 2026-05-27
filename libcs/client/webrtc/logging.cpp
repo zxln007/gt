@@ -18,9 +18,9 @@
 
 #include "logging.h"
 
-class LogSink : public rtc::LogSink {
+class LogSink : public webrtc::LogSink {
   protected:
-    void OnLogMessage(const std::string &message, rtc::LoggingSeverity severity, const char *tag) {
+    void OnLogMessage(const std::string &message, webrtc::LoggingSeverity severity, const char *tag) {
         auto messageStr = (std::string)message;
         if (messageStr.back() == '\n') {
             messageStr.pop_back();
@@ -31,7 +31,7 @@ class LogSink : public rtc::LogSink {
         onLogMessage(severity, (char *)messageStr.c_str(), (char *)tag);
     }
 
-    void OnLogMessage(const std::string &message, rtc::LoggingSeverity severity) {
+    void OnLogMessage(const std::string &message, webrtc::LoggingSeverity severity) {
         auto messageStr = (std::string)message;
         if (messageStr.back() == '\n') {
             messageStr.pop_back();
@@ -50,10 +50,10 @@ class LogSink : public rtc::LogSink {
         if (messageStr.back() == '\r') {
             messageStr.pop_back();
         }
-        onLogMessage(rtc::LS_INFO, (char *)messageStr.c_str(), nullptr);
+        onLogMessage(webrtc::LS_INFO, (char *)messageStr.c_str(), nullptr);
     }
 
-    void OnLogMessage(absl::string_view message, rtc::LoggingSeverity severity, const char *tag) {
+    void OnLogMessage(absl::string_view message, webrtc::LoggingSeverity severity, const char *tag) {
         auto messageStr = (std::string)message;
         if (messageStr.back() == '\n') {
             messageStr.pop_back();
@@ -64,7 +64,7 @@ class LogSink : public rtc::LogSink {
         onLogMessage(severity, (char *)messageStr.c_str(), (char *)tag);
     }
 
-    void OnLogMessage(absl::string_view message, rtc::LoggingSeverity severity) {
+    void OnLogMessage(absl::string_view message, webrtc::LoggingSeverity severity) {
         auto messageStr = (std::string)message;
         if (messageStr.back() == '\n') {
             messageStr.pop_back();
@@ -83,7 +83,7 @@ class LogSink : public rtc::LogSink {
         if (messageStr.back() == '\r') {
             messageStr.pop_back();
         }
-        onLogMessage(rtc::LS_INFO, (char *)messageStr.c_str(), nullptr);
+        onLogMessage(webrtc::LS_INFO, (char *)messageStr.c_str(), nullptr);
     }
 };
 
@@ -92,10 +92,10 @@ void SetLog(int severity) {
     m.lock();
     static ::LogSink *stream = nullptr;
     if (stream != nullptr) {
-        rtc::LogMessage::RemoveLogToStream(stream);
+        webrtc::LogMessage::RemoveLogToStream(stream);
         delete stream;
     }
     stream = new ::LogSink();
-    rtc::LogMessage::AddLogToStream(stream, rtc::LoggingSeverity(severity));
+    webrtc::LogMessage::AddLogToStream(stream, webrtc::LoggingSeverity(severity));
     m.unlock();
 }

@@ -29,18 +29,18 @@
 class ThreadPool {
   public:
     ThreadPool(uint32_t threadNum) {
-        threads = std::vector<std::unique_ptr<rtc::Thread>>(threadNum);
-        socketThreads = std::vector<std::unique_ptr<rtc::Thread>>(threadNum);
+        threads = std::vector<std::unique_ptr<webrtc::Thread>>(threadNum);
+        socketThreads = std::vector<std::unique_ptr<webrtc::Thread>>(threadNum);
     }
 
-    rtc::Thread *GetThread() {
+    webrtc::Thread *GetThread() {
         // 先用读锁的方式从线程池中获取一个线程，如果此线程没有初始化，那么就用写锁的方式初始化它
         std::shared_lock<std::shared_mutex> sharedLock(threadsSharedMutex);
         if (!threads[threadIndex]) {
             sharedLock.unlock();
             std::unique_lock<std::shared_mutex> uniqueLock(threadsSharedMutex);
             if (!threads[threadIndex]) {
-                threads[threadIndex] = rtc::Thread::Create();
+                threads[threadIndex] = webrtc::Thread::Create();
                 threads[threadIndex]->Start();
             }
             uniqueLock.unlock();
@@ -55,14 +55,14 @@ class ThreadPool {
         return result;
     }
 
-    rtc::Thread *GetSocketThread() {
+    webrtc::Thread *GetSocketThread() {
         // 先用读锁的方式从线程池中获取一个线程，如果此线程没有初始化，那么就用写锁的方式初始化它
         std::shared_lock<std::shared_mutex> sharedLock(threadsSharedMutex);
         if (!socketThreads[threadIndex]) {
             sharedLock.unlock();
             std::unique_lock<std::shared_mutex> uniqueLock(threadsSharedMutex);
             if (!socketThreads[threadIndex]) {
-                socketThreads[threadIndex] = rtc::Thread::CreateWithSocketServer();
+                socketThreads[threadIndex] = webrtc::Thread::CreateWithSocketServer();
                 socketThreads[threadIndex]->Start();
             }
             uniqueLock.unlock();
@@ -86,8 +86,8 @@ class ThreadPool {
     }
 
   private:
-    std::vector<std::unique_ptr<rtc::Thread>> threads;
-    std::vector<std::unique_ptr<rtc::Thread>> socketThreads;
+    std::vector<std::unique_ptr<webrtc::Thread>> threads;
+    std::vector<std::unique_ptr<webrtc::Thread>> socketThreads;
     std::shared_mutex threadsSharedMutex;
     std::atomic_uint32_t threadIndex = 0;
 };
