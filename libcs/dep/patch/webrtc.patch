@@ -1,0 +1,22 @@
+diff --git a/libcs/dep/_google-webrtc/src/call/payload_type_picker.cc b/libcs/dep/_google-webrtc/src/call/payload_type_picker.cc
+index be3885d..229aa18 100644
+--- a/libcs/dep/_google-webrtc/src/call/payload_type_picker.cc
++++ b/libcs/dep/_google-webrtc/src/call/payload_type_picker.cc
+@@ -369,7 +369,7 @@
+ RTCError RtpHeaderExtensionRecorder::AddMapping(int id,
+                                                 absl::string_view uri,
+                                                 bool encrypt) {
+-  auto it = uri_to_id_.find(std::pair{uri, encrypt});
++  auto it = uri_to_id_.find(std::pair<std::string, bool>{std::string(uri), encrypt});
+   if (it != uri_to_id_.end()) {
+     if (it->second != id) {
+       RTC_HISTOGRAM_BOOLEAN(
+@@ -390,7 +390,7 @@
+ 
+ RTCErrorOr<int> RtpHeaderExtensionRecorder::LookupId(absl::string_view uri,
+                                                      bool encrypt) const {
+-  auto it = uri_to_id_.find(std::pair{uri, encrypt});
++  auto it = uri_to_id_.find(std::pair<std::string, bool>{std::string(uri), encrypt});
+   if (it == uri_to_id_.end()) {
+     return RTCError(RTCErrorType::INVALID_PARAMETER,
+                     "No ID found for extension");
