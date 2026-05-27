@@ -302,6 +302,7 @@ compile_webrtc: check_webrtc_dependencies update_submodule
         target_os=\"$(TARGET_OS)\" \
         treat_warnings_as_errors=false \
         use_custom_libcxx=false \
+        use_custom_libcxx_for_host=false \
         use_gold=false \
         use_lld=false \
         use_rtti=true \
