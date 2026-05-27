@@ -41,3 +41,24 @@ diff --git a/libcs/dep/_google-webrtc/src/third_party/libvpx/BUILD.gn b/libcs/de
        deps += [
          ":libvpx_intrinsics_sve",
          ":libvpx_intrinsics_sve2",
+diff --git a/libcs/dep/_google-webrtc/src/third_party/libaom/BUILD.gn b/libcs/dep/_google-webrtc/src/third_party/libaom/BUILD.gn
+--- a/libcs/dep/_google-webrtc/src/third_party/libaom/BUILD.gn
++++ b/libcs/dep/_google-webrtc/src/third_party/libaom/BUILD.gn
+@@ -265,7 +265,7 @@
+   # There are known problems with LLVM-based compilers targeting Windows for
+   # SVE code generation. Since there are no client Windows devices that
+   # support SVE(2) at this time, disable SVE(2) on AArch64 Windows targets.
+-  if (!is_win) {
++  if (is_clang && !is_win) {
+     source_set("libaom_intrinsics_sve") {
+       check_includes = false
+       configs -= [ "//build/config/compiler:chromium_code" ]
+@@ -351,7 +351,7 @@
+       ":libaom_intrinsics_neon_dotprod",
+       ":libaom_intrinsics_neon_i8mm",
+     ]
+-    if (!is_win) {
++    if (is_clang && !is_win) {
+       deps += [
+         ":libaom_intrinsics_sve",
+         ":libaom_intrinsics_sve2",

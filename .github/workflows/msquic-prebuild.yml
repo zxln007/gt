@@ -2,15 +2,44 @@ name: msquic prebuild
 
 on:
   workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag used to publish msquic archives"
+        required: true
+        type: string
   push:
     tags:
       - 'msquic-*'
 
 jobs:
+  ensure-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      release_tag: ${{ steps.vars.outputs.release_tag }}
+    steps:
+      - id: vars
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "release_tag=${{ github.event.inputs.release_tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "release_tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Ensure release exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          RELEASE_TAG: ${{ steps.vars.outputs.release_tag }}
+        run: |-
+          gh release view "$RELEASE_TAG" >/dev/null 2>&1 || \
+            gh release create "$RELEASE_TAG" --title "$RELEASE_TAG" --notes "Prebuilt msquic artifacts"
+
   build-msquic-linux:
     runs-on: ubuntu-latest
     permissions:
-      contents: read
+      contents: write
+    needs: ensure-release
     strategy:
       fail-fast: false
       matrix:
@@ -75,11 +104,17 @@ jobs:
         with:
           name: msquic-${{ matrix.target }}
           path: ${{ runner.temp }}/msquic-${{ matrix.target }}.tar.gz
+      - name: Upload release asset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |-
+          gh release upload "${{ needs.ensure-release.outputs.release_tag }}" "$RUNNER_TEMP/msquic-${{ matrix.target }}.tar.gz" --clobber
 
   build-msquic-macos:
     runs-on: macos-latest
     permissions:
-      contents: read
+      contents: write
+    needs: ensure-release
     strategy:
       fail-fast: false
       matrix:
@@ -130,11 +165,17 @@ jobs:
         with:
           name: msquic-${{ matrix.target }}
           path: ${{ runner.temp }}/msquic-${{ matrix.target }}.tar.gz
+      - name: Upload release asset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |-
+          gh release upload "${{ needs.ensure-release.outputs.release_tag }}" "$RUNNER_TEMP/msquic-${{ matrix.target }}.tar.gz" --clobber
 
   build-msquic-windows:
     runs-on: windows-2022
     permissions:
-      contents: read
+      contents: write
+    needs: ensure-release
     strategy:
       fail-fast: false
       matrix:
@@ -195,3 +236,9 @@ jobs:
         with:
           name: msquic-${{ matrix.target }}
           path: ${{ runner.temp }}/msquic-${{ matrix.target }}.tar.gz
+      - name: Upload release asset
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |-
+          gh release upload "${{ needs.ensure-release.outputs.release_tag }}" "$env:RUNNER_TEMP/msquic-${{ matrix.target }}.tar.gz" --clobber
