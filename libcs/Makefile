@@ -312,7 +312,11 @@ compile_webrtc: check_webrtc_dependencies update_submodule
 	sed 's| [^ ]*g++ | $(CXX) |g' ./dep/_google-webrtc/src/out/release-$(TARGET)/toolchain.ninja > ./dep/_google-webrtc/src/out/release-$(TARGET)/toolchain.ninja.tmp
 	cat ./dep/_google-webrtc/src/out/release-$(TARGET)/toolchain.ninja.tmp > ./dep/_google-webrtc/src/out/release-$(TARGET)/toolchain.ninja
 	rm ./dep/_google-webrtc/src/out/release-$(TARGET)/toolchain.ninja.tmp
-	sed 's|"ar"|$(TARGET)-ar|g' ./dep/_google-webrtc/src/out/release-$(TARGET)/toolchain.ninja > ./dep/_google-webrtc/src/out/release-$(TARGET)/toolchain.ninja.tmp
+	sed -e 's/ar = ar/ar = $(TARGET)-ar/g' \
+		-e 's/ar = "ar"/ar = "$(TARGET)-ar"/g' \
+		-e 's/"ar"/$(TARGET)-ar/g' \
+		-e 's/ | ar/ | $(TARGET)-ar/g' \
+		-e 's/ || ar/ || $(TARGET)-ar/g' ./dep/_google-webrtc/src/out/release-$(TARGET)/toolchain.ninja > ./dep/_google-webrtc/src/out/release-$(TARGET)/toolchain.ninja.tmp
 	cat ./dep/_google-webrtc/src/out/release-$(TARGET)/toolchain.ninja.tmp > ./dep/_google-webrtc/src/out/release-$(TARGET)/toolchain.ninja
 	rm ./dep/_google-webrtc/src/out/release-$(TARGET)/toolchain.ninja.tmp
 	ninja -C ./dep/_google-webrtc/src/out/release-$(TARGET)
