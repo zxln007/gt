@@ -40,7 +40,7 @@ jobs:
           $env:PATH = "$(pwd)\depot_tools;" + $env:PATH
           echo "$(pwd)\depot_tools" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
           cd libcs/dep/_google-webrtc
-          gclient config --spec 'solutions = [ { "name": "src", "url": "https://webrtc.googlesource.com/src.git", "managed": False, "custom_deps": {}, }, ]'
+          'solutions = [ { "name": "src", "url": "https://webrtc.googlesource.com/src.git", "managed": False, "custom_deps": {}, }, ]' | Set-Content -Path .gclient
           gclient sync --nohooks --no-history --shallow
 
       - name: Set up MSVC Developer Command Prompt
