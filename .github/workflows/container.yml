@@ -28,7 +28,7 @@ jobs:
           Set-ItemProperty -Path 'HKLM:\SYSTEM\CurrentControlSet\Control\FileSystem' -Name 'LongPathsEnabled' -Value 1
           git config --system core.longpaths true
 
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
 
@@ -60,7 +60,7 @@ jobs:
           & '.\build.ps1'
 
       - name: Archive GT artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: gt-windows
           path: |
@@ -82,7 +82,7 @@ jobs:
           sudo apt clean
           sudo df -Th
       # steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
 
@@ -98,7 +98,7 @@ jobs:
           make
 
       - name: Archive GT artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: gt-linux
           path: |
@@ -195,7 +195,7 @@ jobs:
 
 
     steps:
-      - uses: actions/checkout@v3
+      - uses: actions/checkout@v4
         with:
           submodules: recursive
 
@@ -229,7 +229,7 @@ jobs:
           cp target/x86_64-apple-darwin/release/gt release/gt-macos-x86_64
 
       - name: Archive GT artifacts
-        uses: actions/upload-artifact@v3
+        uses: actions/upload-artifact@v4
         with:
           name: gt-macos
           path: |
