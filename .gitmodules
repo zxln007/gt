@@ -13,7 +13,7 @@
 # limitations under the License.
 
 [submodule "dep/_google-webrtc"]
-	path = libcs/dep/_google-webrtc
+	path = libcs/dep/_google-webrtc/src
 	url = https://webrtc.googlesource.com/src.git
 	branch = main
 	shallow = true
