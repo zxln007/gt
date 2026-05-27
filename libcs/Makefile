@@ -306,10 +306,11 @@ compile_webrtc: check_webrtc_dependencies update_submodule
         use_lld=false \
         use_rtti=true \
         use_sysroot=false"
-	sed 's| [^ ]*gcc | $(CC) |g' ./dep/_google-webrtc/src/out/release-$(TARGET)/toolchain.ninja > ./dep/_google-webrtc/src/out/release-$(TARGET)/toolchain.ninja.tmp
-	cat ./dep/_google-webrtc/src/out/release-$(TARGET)/toolchain.ninja.tmp > ./dep/_google-webrtc/src/out/release-$(TARGET)/toolchain.ninja
-	rm ./dep/_google-webrtc/src/out/release-$(TARGET)/toolchain.ninja.tmp
-	sed 's| [^ ]*g++ | $(CXX) |g' ./dep/_google-webrtc/src/out/release-$(TARGET)/toolchain.ninja > ./dep/_google-webrtc/src/out/release-$(TARGET)/toolchain.ninja.tmp
+	sed -e '/^rule cc$$/{n;s| [^ ]*gcc | $(CC) |g;}' \
+		-e '/^rule cxx$$/{n;s| [^ ]*g++ | $(CXX) |g;}' \
+		-e '/^rule asm$$/{n;s| [^ ]*gcc | $(CC) |g;}' \
+		-e '/^rule solink$$/{n;s| [^ ]*g++ | $(CXX) |g;}' \
+		-e '/^rule link$$/{n;s| [^ ]*g++ | $(CXX) |g;}' ./dep/_google-webrtc/src/out/release-$(TARGET)/toolchain.ninja > ./dep/_google-webrtc/src/out/release-$(TARGET)/toolchain.ninja.tmp
 	cat ./dep/_google-webrtc/src/out/release-$(TARGET)/toolchain.ninja.tmp > ./dep/_google-webrtc/src/out/release-$(TARGET)/toolchain.ninja
 	rm ./dep/_google-webrtc/src/out/release-$(TARGET)/toolchain.ninja.tmp
 	sed -e 's/ar = ar/ar = $(TARGET)-ar/g' \
