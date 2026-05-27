@@ -286,6 +286,7 @@ compile_webrtc: check_webrtc_dependencies update_submodule
         is_debug=false \
         libyuv_disable_jpeg=true \
         libyuv_include_tests=false \
+        libyuv_use_sme=false \
         rtc_build_examples=false \
         rtc_build_tools=false \
         rtc_enable_grpc=false \
