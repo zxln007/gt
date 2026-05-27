@@ -123,7 +123,7 @@ golangci-lint:
 
 update_submodule: set_safe_directories
 	$(UPDATE_SUBMODULE_COMMAND)
-	@git apply dep/patch/* && echo "patches applied" || echo "no patch applied"
+	@git apply dep/patch/*.patch && echo "patches applied" || echo "no patch applied"
 
 set_safe_directories:
 	@echo "Setting safe directories..."
