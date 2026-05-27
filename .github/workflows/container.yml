@@ -132,6 +132,7 @@ jobs:
         id: msquic
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |-
           if [ "$USE_PREBUILT_MSQUIC" != "true" ]; then
             echo "mode=build" >> "$GITHUB_OUTPUT"

@@ -30,6 +30,7 @@ jobs:
       - name: Ensure release exists
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
           RELEASE_TAG: ${{ steps.vars.outputs.release_tag }}
         run: |-
           gh release view "$RELEASE_TAG" >/dev/null 2>&1 || \
@@ -107,6 +108,7 @@ jobs:
       - name: Upload release asset
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |-
           gh release upload "${{ needs.ensure-release.outputs.release_tag }}" "$RUNNER_TEMP/msquic-${{ matrix.target }}.tar.gz" --clobber
 
@@ -168,6 +170,7 @@ jobs:
       - name: Upload release asset
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |-
           gh release upload "${{ needs.ensure-release.outputs.release_tag }}" "$RUNNER_TEMP/msquic-${{ matrix.target }}.tar.gz" --clobber
 
@@ -240,5 +243,6 @@ jobs:
         shell: pwsh
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |-
           gh release upload "${{ needs.ensure-release.outputs.release_tag }}" "$env:RUNNER_TEMP/msquic-${{ matrix.target }}.tar.gz" --clobber
