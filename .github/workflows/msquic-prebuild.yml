@@ -96,14 +96,13 @@ jobs:
 
       - name: Install build dependencies
         run: |-
-          brew install cmake llvm binutils
-          echo "$(brew --prefix llvm)/bin" >> "$GITHUB_PATH"
-          echo "$(brew --prefix binutils)/bin" >> "$GITHUB_PATH"
+          brew install cmake llvm
 
       - name: Build msquic
         run: |-
           cd libcs
-          make build_msquic TARGET=${{ matrix.target }} MSQUIC_MODE=build
+          LLVM_OBJCOPY="$(brew --prefix llvm)/bin/llvm-objcopy"
+          make build_msquic TARGET=${{ matrix.target }} MSQUIC_MODE=build OBJCOPY="$LLVM_OBJCOPY"
 
       - name: Package msquic artifact
         run: |-
@@ -133,7 +132,7 @@ jobs:
           path: ${{ runner.temp }}/msquic-${{ matrix.target }}.tar.gz
 
   build-msquic-windows:
-    runs-on: windows-latest
+    runs-on: windows-2022
     permissions:
       contents: read
     strategy:
