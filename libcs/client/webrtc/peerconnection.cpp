@@ -115,8 +115,8 @@ class CreateAnswerObserver : public webrtc::CreateSessionDescriptionObserver {
 class PeerConnectionObserver : public webrtc::PeerConnectionObserver {
   public:
     PeerConnectionObserver(void *userData) : userData(userData) {
-        createOfferObserver = rtc::make_ref_counted<CreateOfferObserver>(userData);
-        createAnswerObserver = rtc::make_ref_counted<CreateAnswerObserver>(userData);
+        createOfferObserver = webrtc::make_ref_counted<CreateOfferObserver>(userData);
+        createAnswerObserver = webrtc::make_ref_counted<CreateAnswerObserver>(userData);
     }
 
     void Delete() {
@@ -239,11 +239,11 @@ class PeerConnectionObserver : public webrtc::PeerConnectionObserver {
             if (isLocal) {
                 peerConnection->SetLocalDescription(
                     std::move(desc),
-                    rtc::make_ref_counted<::SetLocalDescriptionObserver>(userData));
+                    webrtc::make_ref_counted<::SetLocalDescriptionObserver>(userData));
             } else {
                 peerConnection->SetRemoteDescription(
                     std::move(desc),
-                    rtc::make_ref_counted<::SetRemoteDescriptionObserver>(userData));
+                    webrtc::make_ref_counted<::SetRemoteDescriptionObserver>(userData));
             }
         });
     }
@@ -289,7 +289,7 @@ class PeerConnectionObserver : public webrtc::PeerConnectionObserver {
         ::onSignalingChange((int)new_state, userData);
     }
 
-    void OnDataChannel(rtc::scoped_refptr<webrtc::DataChannelInterface> data_channel) {
+    void OnDataChannel(webrtc::scoped_refptr<webrtc::DataChannelInterface> data_channel) {
         auto dataChannelReleased = data_channel.release();
         ::onDataChannel((char *)dataChannelReleased->label().c_str(), dataChannelReleased->id(),
                         (void *)dataChannelReleased, userData);
@@ -334,18 +334,18 @@ class PeerConnectionObserver : public webrtc::PeerConnectionObserver {
     }
 
   private:
-    rtc::scoped_refptr<webrtc::PeerConnectionInterface> peerConnection;
+    webrtc::scoped_refptr<webrtc::PeerConnectionInterface> peerConnection;
     webrtc::Thread *signalingThread;
     std::unique_ptr<webrtc::Thread> ownedSignalingThread;
-    rtc::scoped_refptr<CreateOfferObserver> createOfferObserver;
-    rtc::scoped_refptr<CreateAnswerObserver> createAnswerObserver;
+    webrtc::scoped_refptr<CreateOfferObserver> createOfferObserver;
+    webrtc::scoped_refptr<CreateAnswerObserver> createAnswerObserver;
     void *userData;
 };
 
 char *NewPeerConnection(void **peerConnectionOutside, char **iceServers, int iceServersLen,
                         uint16_t *minPort, uint16_t *maxPort, void *signalingThread,
                         void *networkThread, void *workerThread, void *userData) {
-    auto peerConnectionObserver = rtc::make_ref_counted<::PeerConnectionObserver>(userData);
+    auto peerConnectionObserver = webrtc::make_ref_counted<::PeerConnectionObserver>(userData);
     *peerConnectionOutside = (void *)peerConnectionObserver.release();
     auto err = (*(::PeerConnectionObserver **)peerConnectionOutside)
                    ->Start(iceServers, iceServersLen, minPort, maxPort, signalingThread,

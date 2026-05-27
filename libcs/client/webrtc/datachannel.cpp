@@ -49,7 +49,7 @@ void DeleteDataChannel(void *dataChannel) {
 bool DataChannelSend(void *buf, int bufLen, void *dataChannel) {
     auto dataChannelObserverInternal = (::DataChannelObserver *)dataChannel;
     return dataChannelObserverInternal->dataChannel->Send(
-        webrtc::DataBuffer(rtc::CopyOnWriteBuffer((char *)buf, (size_t)bufLen), true));
+        webrtc::DataBuffer(webrtc::CopyOnWriteBuffer((char *)buf, (size_t)bufLen), true));
 }
 
 void SetDataChannelCallback(void *dataChannelWithoutCallback, void **dataChannelOutside,
