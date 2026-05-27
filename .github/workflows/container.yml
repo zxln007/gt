@@ -42,6 +42,9 @@ jobs:
           cd libcs/dep/_google-webrtc
           'solutions = [ { "name": "src", "url": "https://webrtc.googlesource.com/src.git", "managed": False, "custom_deps": {}, }, ]' | Set-Content -Path .gclient
           gclient sync --nohooks --no-history --shallow
+          New-Item -ItemType Directory -Force -Path 'src/build/util'
+          [int]([datetimeoffset]::Now.ToUnixTimeSeconds()) | Out-File -FilePath 'src/build/util/LASTCHANGE.committime' -Encoding ascii
+          "LASTCHANGE=d0c0fbd3" | Out-File -FilePath 'src/build/util/LASTCHANGE' -Encoding ascii
 
       - name: Set up MSVC Developer Command Prompt
         uses: ilammy/msvc-dev-cmd@v1
@@ -101,6 +104,9 @@ jobs:
           cd libcs/dep/_google-webrtc
           gclient config --spec 'solutions = [ { "name": "src", "url": "https://webrtc.googlesource.com/src.git", "managed": False, "custom_deps": {}, }, ]'
           gclient sync --nohooks --no-history --shallow
+          mkdir -p src/build/util
+          echo "$(date +%s)" > src/build/util/LASTCHANGE.committime
+          echo "LASTCHANGE=d0c0fbd3" > src/build/util/LASTCHANGE
 
       - name: Set up Go
         uses: actions/setup-go@v4
@@ -223,6 +229,9 @@ jobs:
           cd libcs/dep/_google-webrtc
           gclient config --spec 'solutions = [ { "name": "src", "url": "https://webrtc.googlesource.com/src.git", "managed": False, "custom_deps": {}, }, ]'
           gclient sync --nohooks --no-history --shallow
+          mkdir -p src/build/util
+          echo "$(date +%s)" > src/build/util/LASTCHANGE.committime
+          echo "LASTCHANGE=d0c0fbd3" > src/build/util/LASTCHANGE
 
 
       - name: Set up Go
