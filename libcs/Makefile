@@ -86,7 +86,7 @@ PWD=$(shell pwd)
 export CGO_CXXFLAGS=-I$(PWD)/dep/_google-webrtc/src \
 	-I$(PWD)/dep/_google-webrtc/src/third_party/abseil-cpp \
 	-I$(PWD)/dep/_msquic/src/inc \
-	-std=c++17 $(DEF_WEBRTC_COND) -DQUIC_API_ENABLE_PREVIEW_FEATURES
+	-std=c++20 $(DEF_WEBRTC_COND) -DQUIC_API_ENABLE_PREVIEW_FEATURES
 export CGO_LDFLAGS= $(DEF_LDFLAGS) \
 	-pthread
 export CGO_ENABLED=1
