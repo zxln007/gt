@@ -126,7 +126,11 @@ ifeq ($(MSQUIC_MODE),prebuilt)
 	MSQUIC_METADATA_FILE:=$(MSQUIC_PREBUILT_ROOT)/metadata.json
 else
 	MSQUIC_INCLUDE_DIR:=$(MSQUIC_BUILD_ROOT)/src/inc
+ifeq ($(GOOS),windows)
+	MSQUIC_LIB_FILE:=$(MSQUIC_BUILD_ROOT)/artifacts/bin/windows/x64_Release_schannel/$(MSQUIC_ARTIFACT_LIB_NAME)
+else
 	MSQUIC_LIB_FILE:=$(MSQUIC_BUILD_ROOT)/out/$(TARGET)/bin/Release/$(MSQUIC_ARTIFACT_LIB_NAME)
+endif
 endif
 
 ifeq ($(WEBRTC_MODE),prebuilt)

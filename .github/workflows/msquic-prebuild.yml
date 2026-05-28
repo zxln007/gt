@@ -185,7 +185,7 @@ jobs:
         include:
           - target: x86_64-pc-windows-msvc
             arch: amd64
-            output_lib: core/dep/_msquic/build/windows/x64_schannel/obj/Release/msquic.lib
+            output_lib: core/dep/_msquic/artifacts/bin/windows/x64_Release_schannel/msquic.lib
             artifact_lib_name: msquic.lib
 
     steps:

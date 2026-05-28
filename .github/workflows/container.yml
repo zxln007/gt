@@ -279,7 +279,7 @@ jobs:
         run: |-
           $WORK_DIR = Get-Location
           $MSQUIC_DIR = "$WORK_DIR/core/dep/_msquic"
-          $MSQUIC_OUT_DIR = "$MSQUIC_DIR/build/windows/x64_schannel/obj/Release"
+          $MSQUIC_OUT_DIR = "$MSQUIC_DIR/artifacts/bin/windows/x64_Release_schannel"
           
           Set-Location $MSQUIC_DIR
           Write-Host "Preparing msquic environment"
@@ -299,6 +299,11 @@ jobs:
           New-Item -ItemType Directory -Force -Path "$artifact_root/lib"
           Copy-Item -Path "core/dep/_msquic/src/inc/*" -Destination "$artifact_root/include/" -Recurse -Force
           Copy-Item -Path "$MSQUIC_OUT_DIR/msquic.lib" -Destination "$artifact_root/lib/"
+          $prebuilt_root = "core/prebuilt/msquic/${{ matrix.target }}"
+          New-Item -ItemType Directory -Force -Path "$prebuilt_root/include"
+          New-Item -ItemType Directory -Force -Path "$prebuilt_root/lib"
+          Copy-Item -Path "core/dep/_msquic/src/inc/*" -Destination "$prebuilt_root/include/" -Recurse -Force
+          Copy-Item -Path "$MSQUIC_OUT_DIR/msquic.lib" -Destination "$prebuilt_root/lib/"
           
           $commit = git -C core/dep/_msquic rev-parse HEAD
           $metadata = @{
@@ -313,6 +318,7 @@ jobs:
             built_by = "github-actions"
           } | ConvertTo-Json
           $metadata | Out-File -FilePath "$artifact_root/metadata.json" -Encoding utf8
+          $metadata | Out-File -FilePath "$prebuilt_root/metadata.json" -Encoding utf8
           
           tar -C "$artifact_root" -czf "$env:RUNNER_TEMP/msquic-${{ matrix.target }}.tar.gz" .
           
@@ -396,6 +402,9 @@ jobs:
           $artifact_root = "$env:RUNNER_TEMP/webrtc-${{ matrix.target }}"
           New-Item -ItemType Directory -Force -Path "$artifact_root/lib"
           Copy-Item -Path "$WEBRTC_OUT_DIR/webrtc.lib" -Destination "$artifact_root/lib/"
+          $prebuilt_root = "core/prebuilt/webrtc/${{ matrix.target }}"
+          New-Item -ItemType Directory -Force -Path "$prebuilt_root/lib"
+          Copy-Item -Path "$WEBRTC_OUT_DIR/webrtc.lib" -Destination "$prebuilt_root/lib/"
           
           $commit = git -C "$WEBRTC_DIR/src" rev-parse HEAD
           $metadata = @{
@@ -409,6 +418,7 @@ jobs:
             built_by = "github-actions"
           } | ConvertTo-Json
           $metadata | Out-File -FilePath "$artifact_root/metadata.json" -Encoding utf8
+          $metadata | Out-File -FilePath "$prebuilt_root/metadata.json" -Encoding utf8
           
           tar -C "$artifact_root" -czf "$env:RUNNER_TEMP/webrtc-${{ matrix.target }}.tar.gz" .
           
@@ -423,6 +433,9 @@ jobs:
       # ---------------------------------------------------------------------
       - name: Compile GT single target
         shell: bash
+        env:
+          EFFECTIVE_MSQUIC_MODE: ${{ runner.os == 'Windows' && 'prebuilt' || steps.msquic.outputs.mode }}
+          EFFECTIVE_WEBRTC_MODE: ${{ runner.os == 'Windows' && 'prebuilt' || steps.webrtc.outputs.mode }}
         run: |-
           make release_target \
             TARGET=${{ matrix.target }} \
@@ -430,8 +443,8 @@ jobs:
             GOARCH=${{ matrix.goarch }} \
             RUST_TARGET=${{ matrix.rust_target }} \
             BINARY_SUFFIX=${{ matrix.binary_suffix }} \
-            MSQUIC_MODE=${{ steps.msquic.outputs.mode }} \
-            WEBRTC_MODE=${{ steps.webrtc.outputs.mode }}
+            MSQUIC_MODE=$EFFECTIVE_MSQUIC_MODE \
+            WEBRTC_MODE=$EFFECTIVE_WEBRTC_MODE
 
       # ---------------------------------------------------------------------
       # 8. Build Wails Desktop App (Only if build_desktop is enabled)
