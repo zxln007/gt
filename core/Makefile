@@ -94,7 +94,11 @@ endif
 ifeq ($(TARGET_CPU), i386)
     TARGET_CPU=x86
 endif
-PWD=$(shell pwd)
+ifeq ($(GOOS),windows)
+	PWD:=$(shell pwd -W 2>/dev/null || pwd)
+else
+	PWD:=$(shell pwd)
+endif
 MSQUIC_MODE?=build
 MSQUIC_BUILD_ROOT?=$(PWD)/dep/_msquic
 MSQUIC_PREBUILT_ROOT?=$(PWD)/prebuilt/msquic/$(TARGET)
