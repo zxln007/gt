@@ -62,6 +62,14 @@ endif
 ifeq ($(TARGET_OS), apple)
 	export CC=clang
 	export CXX=clang++
+	ifeq ($(TARGET_CPU), x86_64)
+		export CC=clang -arch x86_64
+		export CXX=clang++ -arch x86_64
+	endif
+	ifeq ($(TARGET_CPU), aarch64)
+		export CC=clang -arch arm64
+		export CXX=clang++ -arch arm64
+	endif
 	TARGET_OS=mac
 	OBJCOPY=llvm-objcopy
 	ifeq ($(TARGET_CPU), arm64)
