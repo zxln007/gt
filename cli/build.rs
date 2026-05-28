@@ -60,6 +60,8 @@ fn main() {
             println!("cargo:rerun-if-changed=core/release/windows");
             println!("cargo:rustc-link-search=core/release/windows");
             println!("cargo:rustc-link-lib=static=gt");
+            println!("cargo:rustc-link-lib=static=webrtc");
+            println!("cargo:rustc-link-lib=static=msquic");
         }
         os => {
             panic!("Unsupported OS: {}", os)
