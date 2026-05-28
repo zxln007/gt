@@ -42,6 +42,10 @@ export GOOS?=$(shell go env GOOS)
 export GOARCH?=$(shell go env GOARCH)
 export CC=$(TARGET)-gcc -w
 export CXX=$(TARGET)-g++ -w
+ifeq ($(GOOS),windows)
+	export CC=clang -w
+	export CXX=clang++ -w
+endif
 OBJCOPY=$(TARGET)-objcopy
 ifeq ($(TARGET_OS), native)
 	TARGET_OS=
@@ -93,9 +97,15 @@ WEBRTC_BUILD_ROOT?=$(PWD)/dep/_google-webrtc/src
 WEBRTC_PREBUILT_ROOT?=$(PWD)/prebuilt/webrtc/$(TARGET)
 WEBRTC_ARTIFACT_LIB_NAME?=libwebrtc.a
 
+RUST_TARGET_DIR?=$(RUST_TARGET)
+GO_OUT_FILE_NAME?=libcs.a
+
 ifeq ($(GOOS),windows)
 	MSQUIC_ARTIFACT_LIB_NAME:=msquic.lib
 	WEBRTC_ARTIFACT_LIB_NAME:=webrtc.lib
+	DEF_WEBRTC_COND?=-DWEBRTC_WIN -DNOMINMAX
+	RUST_TARGET_DIR:=windows
+	GO_OUT_FILE_NAME:=gt.lib
 endif
 
 ifeq ($(MSQUIC_MODE),prebuilt)
@@ -117,8 +127,10 @@ export CGO_CXXFLAGS=-I$(PWD)/dep/_google-webrtc/src \
 	-I$(PWD)/dep/_google-webrtc/src/third_party/abseil-cpp \
 	-I$(MSQUIC_INCLUDE_DIR) \
 	-std=c++20 $(DEF_WEBRTC_COND) -DQUIC_API_ENABLE_PREVIEW_FEATURES
-export CGO_LDFLAGS= $(DEF_LDFLAGS) \
-	-pthread
+export CGO_LDFLAGS= $(DEF_LDFLAGS)
+ifneq ($(GOOS),windows)
+	export CGO_LDFLAGS+= -pthread
+endif
 export CGO_ENABLED=1
 
 .PHONY: all build docker_build_linux_arm64 fmt build_client docker_build_linux_arm64_client gofumpt build_server docker_build_linux_arm64_server golangci-lint check_webrtc_dependencies docker_release_linux_amd64 release clean docker_release_linux_amd64_client release_client compile_webrtc docker_release_linux_amd64_server release_server docker_create_image docker_build_linux_amd64 docker_release_linux_arm64 revive docker_build_linux_amd64_client docker_release_linux_arm64_client test docker_build_linux_amd64_server docker_release_linux_arm64_server set_safe_directories update_submodule build_web_server build_web_client release_web_server release_web_client check_npm front_release duplicate_dist_server clean_duplication_client clean_web clean_dist clean_duplication clean_duplication_server clean_duplication_client check_msquic_dependencies resolve_msquic validate_msquic build_msquic prepare_msquic compile_msquic resolve_webrtc validate_webrtc prepare_webrtc build_webrtc
@@ -252,15 +264,15 @@ release_server: $(SOURCES) Makefile prepare_msquic compile_webrtc release_web_se
 	$(eval NAME=$(GOOS)-$(GOARCH)-server)
 	go build $(RELEASE_OPTIONS) -o release/$(NAME)$(EXE) ./cmd/server
 build_lib: $(SOURCES) Makefile prepare_msquic compile_webrtc
-	mkdir -p release/$(RUST_TARGET)
-	cp $(WEBRTC_LIB_FILE) release/$(RUST_TARGET)/
-	cp $(MSQUIC_LIB_FILE) release/$(RUST_TARGET)/
-	go build $(DEBUG_OPTIONS) -buildmode=c-archive -o release/$(RUST_TARGET)/libcs.a ./lib/export
+	mkdir -p release/$(RUST_TARGET_DIR)
+	cp $(WEBRTC_LIB_FILE) release/$(RUST_TARGET_DIR)/
+	cp $(MSQUIC_LIB_FILE) release/$(RUST_TARGET_DIR)/
+	go build $(DEBUG_OPTIONS) -buildmode=c-archive -o release/$(RUST_TARGET_DIR)/$(GO_OUT_FILE_NAME) ./lib/export
 release_lib: $(SOURCES) Makefile prepare_msquic compile_webrtc release_web_client release_web_server
-	mkdir -p release/$(RUST_TARGET)
-	cp $(WEBRTC_LIB_FILE) release/$(RUST_TARGET)/
-	cp $(MSQUIC_LIB_FILE) release/$(RUST_TARGET)/
-	go build $(RELEASE_OPTIONS) -buildmode=c-archive -o release/$(RUST_TARGET)/libcs.a ./lib/export
+	mkdir -p release/$(RUST_TARGET_DIR)
+	cp $(WEBRTC_LIB_FILE) release/$(RUST_TARGET_DIR)/
+	cp $(MSQUIC_LIB_FILE) release/$(RUST_TARGET_DIR)/
+	go build $(RELEASE_OPTIONS) -buildmode=c-archive -o release/$(RUST_TARGET_DIR)/$(GO_OUT_FILE_NAME) ./lib/export
 
 release_web_server: $(SOURCES_FRONT) Makefile check_npm front_release duplicate_dist_server
 release_web_client: $(SOURCES_FRONT) Makefile check_npm front_release duplicate_dist_client
