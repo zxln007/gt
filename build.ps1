@@ -98,7 +98,7 @@ function complie_msquic{
 
     }
     Write-Host "msquic开始编译"
-    &./scripts/build.ps1 -Config Release -Clean -Static -DisableTest -DisableTools -StaticCRT -Generator Ninja
+    &./scripts/build.ps1 -Config Release -Clean -Static -DisableTest -DisableTools -StaticCRT
     if (Test-Path -Path "$MSQUIC_OUT_DIR/msquic.lib")
     {
         Write-Host "msquic编译完成"

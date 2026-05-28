@@ -208,7 +208,7 @@ jobs:
         shell: pwsh
         run: |-
           Set-Location core/dep/_msquic
-          ./scripts/build.ps1 -Config Release -Static -DisableTest -DisableTools -StaticCRT -Generator Ninja
+          ./scripts/build.ps1 -Config Release -Static -DisableTest -DisableTools -StaticCRT
 
       - name: Package msquic artifact
         shell: pwsh
