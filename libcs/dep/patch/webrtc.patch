@@ -62,3 +62,16 @@ diff --git a/libcs/dep/_google-webrtc/src/third_party/libaom/BUILD.gn b/libcs/de
        deps += [
          ":libaom_intrinsics_sve",
          ":libaom_intrinsics_sve2",
+diff --git a/libcs/dep/_google-webrtc/src/rtc_base/platform_thread_types.cc b/libcs/dep/_google-webrtc/src/rtc_base/platform_thread_types.cc
+index 45bf7a1..3a36ef7 100644
+--- a/libcs/dep/_google-webrtc/src/rtc_base/platform_thread_types.cc
++++ b/libcs/dep/_google-webrtc/src/rtc_base/platform_thread_types.cc
+@@ -16,7 +16,7 @@
+ #include <sys/prctl.h>
+ #include <sys/syscall.h>
+ 
+-#if !defined(WEBRTC_ARCH_ARM) && !defined(WEBRTC_ARCH_ARM64)
++#if !defined(WEBRTC_ARCH_ARM) && !defined(WEBRTC_ARCH_ARM64) && !defined(__riscv)
+ #include <asm/unistd_64.h>
+ #endif
+ #endif

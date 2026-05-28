@@ -95,6 +95,17 @@ else
 	MSQUIC_INCLUDE_DIR:=$(MSQUIC_BUILD_ROOT)/src/inc
 	MSQUIC_LIB_FILE:=$(MSQUIC_BUILD_ROOT)/out/$(TARGET)/bin/Release/libmsquic.a
 endif
+
+WEBRTC_MODE?=build
+WEBRTC_BUILD_ROOT?=$(PWD)/dep/_google-webrtc/src
+WEBRTC_PREBUILT_ROOT?=$(PWD)/prebuilt/webrtc/$(TARGET)
+WEBRTC_ARTIFACT_LIB_NAME?=libwebrtc.a
+ifeq ($(WEBRTC_MODE),prebuilt)
+	WEBRTC_LIB_FILE:=$(WEBRTC_PREBUILT_ROOT)/lib/$(WEBRTC_ARTIFACT_LIB_NAME)
+	WEBRTC_METADATA_FILE:=$(WEBRTC_PREBUILT_ROOT)/metadata.json
+else
+	WEBRTC_LIB_FILE:=$(WEBRTC_BUILD_ROOT)/out/release-$(TARGET)/obj/libwebrtc.a
+endif
 export CGO_CXXFLAGS=-I$(PWD)/dep/_google-webrtc/src \
 	-I$(PWD)/dep/_google-webrtc/src/third_party/abseil-cpp \
 	-I$(MSQUIC_INCLUDE_DIR) \
@@ -103,7 +114,7 @@ export CGO_LDFLAGS= $(DEF_LDFLAGS) \
 	-pthread
 export CGO_ENABLED=1
 
-.PHONY: all build docker_build_linux_arm64 fmt build_client docker_build_linux_arm64_client gofumpt build_server docker_build_linux_arm64_server golangci-lint check_webrtc_dependencies docker_release_linux_amd64 release clean docker_release_linux_amd64_client release_client compile_webrtc docker_release_linux_amd64_server release_server docker_create_image docker_build_linux_amd64 docker_release_linux_arm64 revive docker_build_linux_amd64_client docker_release_linux_arm64_client test docker_build_linux_amd64_server docker_release_linux_arm64_server set_safe_directories update_submodule build_web_server build_web_client release_web_server release_web_client check_npm front_release duplicate_dist_server clean_duplication_client clean_web clean_dist clean_duplication clean_duplication_server clean_duplication_client check_msquic_dependencies resolve_msquic validate_msquic build_msquic prepare_msquic compile_msquic
+.PHONY: all build docker_build_linux_arm64 fmt build_client docker_build_linux_arm64_client gofumpt build_server docker_build_linux_arm64_server golangci-lint check_webrtc_dependencies docker_release_linux_amd64 release clean docker_release_linux_amd64_client release_client compile_webrtc docker_release_linux_amd64_server release_server docker_create_image docker_build_linux_amd64 docker_release_linux_arm64 revive docker_build_linux_amd64_client docker_release_linux_arm64_client test docker_build_linux_amd64_server docker_release_linux_arm64_server set_safe_directories update_submodule build_web_server build_web_client release_web_server release_web_client check_npm front_release duplicate_dist_server clean_duplication_client clean_web clean_dist clean_duplication clean_duplication_server clean_duplication_client check_msquic_dependencies resolve_msquic validate_msquic build_msquic prepare_msquic compile_msquic resolve_webrtc validate_webrtc prepare_webrtc build_webrtc
 
 all: gofumpt golangci-lint test release
 
@@ -235,12 +246,12 @@ release_server: $(SOURCES) Makefile prepare_msquic compile_webrtc release_web_se
 	go build $(RELEASE_OPTIONS) -o release/$(NAME)$(EXE) ./cmd/server
 build_lib: $(SOURCES) Makefile prepare_msquic compile_webrtc
 	mkdir -p release/$(RUST_TARGET)
-	cp $(PWD)/dep/_google-webrtc/src/out/release-$(TARGET)/obj/libwebrtc.a release/$(RUST_TARGET)/
+	cp $(WEBRTC_LIB_FILE) release/$(RUST_TARGET)/
 	cp $(MSQUIC_LIB_FILE) release/$(RUST_TARGET)/
 	go build $(DEBUG_OPTIONS) -buildmode=c-archive -o release/$(RUST_TARGET)/libcs.a ./lib/export
 release_lib: $(SOURCES) Makefile prepare_msquic compile_webrtc release_web_client release_web_server
 	mkdir -p release/$(RUST_TARGET)
-	cp $(PWD)/dep/_google-webrtc/src/out/release-$(TARGET)/obj/libwebrtc.a release/$(RUST_TARGET)/
+	cp $(WEBRTC_LIB_FILE) release/$(RUST_TARGET)/
 	cp $(MSQUIC_LIB_FILE) release/$(RUST_TARGET)/
 	go build $(RELEASE_OPTIONS) -buildmode=c-archive -o release/$(RUST_TARGET)/libcs.a ./lib/export
 
@@ -288,7 +299,7 @@ check_webrtc_dependencies:
 	sh -c "command -v $(CXX)"
 
 ifeq ($(TARGET_OS), linux)
-compile_webrtc: check_webrtc_dependencies update_submodule
+build_webrtc: check_webrtc_dependencies update_submodule
 	cd ./dep/_google-webrtc/src && gn gen out/release-$(TARGET) --args=" \
         clang_use_chrome_plugins=false \
         enable_google_benchmarks=false \
@@ -337,7 +348,7 @@ compile_webrtc: check_webrtc_dependencies update_submodule
 	ninja -C ./dep/_google-webrtc/src/out/release-$(TARGET)
 endif
 ifeq ($(TARGET_OS), mac)
-compile_webrtc: check_webrtc_dependencies update_submodule
+build_webrtc: check_webrtc_dependencies update_submodule
 	python3 ./dep/_google-webrtc/src/tools/clang/scripts/update.py
 	cd ./dep/_google-webrtc/src && gn gen out/release-$(TARGET) --args=" \
         clang_use_chrome_plugins=false \
@@ -402,6 +413,31 @@ else
 endif
 
 compile_msquic: prepare_msquic
+
+resolve_webrtc:
+ifeq ($(WEBRTC_MODE),prebuilt)
+	@echo "Using prebuilt webrtc from $(WEBRTC_PREBUILT_ROOT)"
+else
+	@echo "Using build-mode webrtc from $(WEBRTC_BUILD_ROOT)"
+endif
+
+validate_webrtc:
+	test -f "$(WEBRTC_LIB_FILE)"
+ifeq ($(WEBRTC_MODE),prebuilt)
+	test -f "$(WEBRTC_METADATA_FILE)"
+	grep -Eq '"target"[[:space:]]*:[[:space:]]*"$(TARGET)"' "$(WEBRTC_METADATA_FILE)"
+	grep -Eq '"library_type"[[:space:]]*:[[:space:]]*"static"' "$(WEBRTC_METADATA_FILE)"
+endif
+
+prepare_webrtc: resolve_webrtc
+ifeq ($(WEBRTC_MODE),prebuilt)
+	$(MAKE) validate_webrtc WEBRTC_MODE=$(WEBRTC_MODE) TARGET=$(TARGET)
+else
+	$(MAKE) build_webrtc WEBRTC_MODE=$(WEBRTC_MODE) TARGET=$(TARGET)
+	$(MAKE) validate_webrtc WEBRTC_MODE=$(WEBRTC_MODE) TARGET=$(TARGET)
+endif
+
+compile_webrtc: prepare_webrtc
 
 ifeq ($(TARGET_OS), linux)
 build_msquic: check_msquic_dependencies update_submodule

@@ -37,3 +37,10 @@ darwin:
 	mkdir -p release
 	cp target/x86_64-apple-darwin/release/gt release/gt-macos-x86_64
 	cp target/aarch64-apple-darwin/release/gt release/gt-macos-aarch64
+
+release_target:
+	cd ./libcs && TARGET=$(TARGET) GOOS=$(GOOS) GOARCH=$(GOARCH) RUST_TARGET=$(RUST_TARGET) MSQUIC_MODE=$(MSQUIC_MODE) WEBRTC_MODE=$(WEBRTC_MODE) make release_lib
+	cargo build --target $(RUST_TARGET) -r
+	mkdir -p release
+	cp target/$(RUST_TARGET)/release/gt release/gt-$(BINARY_SUFFIX)
+

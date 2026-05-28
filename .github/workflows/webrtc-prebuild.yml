@@ -1,0 +1,291 @@
+name: webrtc prebuild
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag used to publish WebRTC archives"
+        required: true
+        default: "webrtc-prebuilt"
+        type: string
+  push:
+    tags:
+      - 'webrtc-*'
+
+jobs:
+  ensure-release:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    outputs:
+      release_tag: ${{ steps.vars.outputs.release_tag }}
+    steps:
+      - id: vars
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "release_tag=${{ github.event.inputs.release_tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "release_tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          fi
+      - name: Ensure release exists
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+          RELEASE_TAG: ${{ steps.vars.outputs.release_tag }}
+        run: |-
+          gh release view "$RELEASE_TAG" >/dev/null 2>&1 || \
+            gh release create "$RELEASE_TAG" --title "$RELEASE_TAG" --notes "Prebuilt WebRTC artifacts"
+
+  build-webrtc-linux:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    needs: ensure-release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-linux-gnu
+            gcc_package: gcc-x86-64-linux-gnu
+            gxx_package: g++-x86-64-linux-gnu
+            binutils_package: binutils-x86-64-linux-gnu
+            arch: amd64
+          - target: aarch64-linux-gnu
+            gcc_package: gcc-aarch64-linux-gnu
+            gxx_package: g++-aarch64-linux-gnu
+            binutils_package: binutils-aarch64-linux-gnu
+            arch: arm64
+          - target: riscv64-linux-gnu
+            gcc_package: gcc-riscv64-linux-gnu
+            gxx_package: g++-riscv64-linux-gnu
+            binutils_package: binutils-riscv64-linux-gnu
+            arch: riscv64
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Sync WebRTC Dependencies
+        run: |-
+          git clone --depth=1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
+          export PATH=$PWD/depot_tools:$PATH
+          echo "$PWD/depot_tools" >> $GITHUB_PATH
+          cd libcs/dep/_google-webrtc
+          gclient config --spec 'solutions = [ { "name": "src", "url": "https://webrtc.googlesource.com/src.git", "managed": False, "custom_deps": {}, }, ]'
+          gclient sync --nohooks --no-history --shallow
+          mkdir -p src/build/util
+          echo "$(date +%s)" > src/build/util/LASTCHANGE.committime
+          echo "LASTCHANGE=d0c0fbd3" > src/build/util/LASTCHANGE
+
+      - name: Install build dependencies
+        run: |-
+          sudo apt-get update
+          sudo apt-get install -y make git gn ninja-build python3 python3-pip libgtk-3-dev gcc rustc \
+            ${{ matrix.gcc_package }} \
+            ${{ matrix.gxx_package }} \
+            ${{ matrix.binutils_package }}
+
+      - name: Build WebRTC
+        run: |-
+          cd libcs
+          make build_webrtc TARGET=${{ matrix.target }} WEBRTC_MODE=build
+
+      - name: Package WebRTC artifact
+        run: |-
+          artifact_root="$RUNNER_TEMP/webrtc-${{ matrix.target }}"
+          mkdir -p "$artifact_root/lib"
+          cp "libcs/dep/_google-webrtc/src/out/release-${{ matrix.target }}/obj/libwebrtc.a" "$artifact_root/lib/"
+          cat > "$artifact_root/metadata.json" <<EOF
+          {
+            "name": "webrtc",
+            "artifact_version": 1,
+            "target": "${{ matrix.target }}",
+            "os": "linux",
+            "arch": "${{ matrix.arch }}",
+            "library_type": "static",
+            "webrtc_commit": "$(git -C libcs/dep/_google-webrtc/src rev-parse HEAD)",
+            "built_by": "github-actions"
+          }
+          EOF
+          tar -C "$artifact_root" -czf "$RUNNER_TEMP/webrtc-${{ matrix.target }}.tar.gz" .
+
+      - name: Upload WebRTC archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: webrtc-${{ matrix.target }}
+          path: ${{ runner.temp }}/webrtc-${{ matrix.target }}.tar.gz
+
+      - name: Upload release asset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |-
+          gh release upload "${{ needs.ensure-release.outputs.release_tag }}" "$RUNNER_TEMP/webrtc-${{ matrix.target }}.tar.gz" --clobber
+
+  build-webrtc-macos:
+    runs-on: macos-latest
+    permissions:
+      contents: write
+    needs: ensure-release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: aarch64-apple-darwin
+            arch: arm64
+          - target: x86_64-apple-darwin
+            arch: amd64
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Sync WebRTC Dependencies
+        run: |-
+          git clone --depth=1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
+          export PATH=$PWD/depot_tools:$PATH
+          echo "$PWD/depot_tools" >> $GITHUB_PATH
+          cd libcs/dep/_google-webrtc
+          gclient config --spec 'solutions = [ { "name": "src", "url": "https://webrtc.googlesource.com/src.git", "managed": False, "custom_deps": {}, }, ]'
+          gclient sync --nohooks --no-history --shallow
+          mkdir -p src/build/util
+          echo "$(date +%s)" > src/build/util/LASTCHANGE.committime
+          echo "LASTCHANGE=d0c0fbd3" > src/build/util/LASTCHANGE
+
+      - name: Build WebRTC
+        run: |-
+          cd libcs
+          make build_webrtc TARGET=${{ matrix.target }} WEBRTC_MODE=build
+
+      - name: Package WebRTC artifact
+        run: |-
+          artifact_root="$RUNNER_TEMP/webrtc-${{ matrix.target }}"
+          mkdir -p "$artifact_root/lib"
+          cp "libcs/dep/_google-webrtc/src/out/release-${{ matrix.target }}/obj/libwebrtc.a" "$artifact_root/lib/"
+          cat > "$artifact_root/metadata.json" <<EOF
+          {
+            "name": "webrtc",
+            "artifact_version": 1,
+            "target": "${{ matrix.target }}",
+            "os": "macos",
+            "arch": "${{ matrix.arch }}",
+            "library_type": "static",
+            "webrtc_commit": "$(git -C libcs/dep/_google-webrtc/src rev-parse HEAD)",
+            "built_by": "github-actions"
+          }
+          EOF
+          tar -C "$artifact_root" -czf "$RUNNER_TEMP/webrtc-${{ matrix.target }}.tar.gz" .
+
+      - name: Upload WebRTC archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: webrtc-${{ matrix.target }}
+          path: ${{ runner.temp }}/webrtc-${{ matrix.target }}.tar.gz
+
+      - name: Upload release asset
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |-
+          gh release upload "${{ needs.ensure-release.outputs.release_tag }}" "$RUNNER_TEMP/webrtc-${{ matrix.target }}.tar.gz" --clobber
+
+  build-webrtc-windows:
+    runs-on: windows-2022
+    permissions:
+      contents: write
+    needs: ensure-release
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-pc-windows-msvc
+            arch: amd64
+            output_lib: libcs/dep/_google-webrtc/src/out/release/obj/webrtc.lib
+            artifact_lib_name: webrtc.lib
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up MSVC Developer Command Prompt
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Sync WebRTC Dependencies
+        shell: pwsh
+        run: |-
+          git clone --depth=1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
+          $env:PATH = "$(pwd)\depot_tools;" + $env:PATH
+          echo "$(pwd)\depot_tools" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+          cd libcs/dep/_google-webrtc
+          'solutions = [ { "name": "src", "url": "https://webrtc.googlesource.com/src.git", "managed": False, "custom_deps": {}, }, ]' | Set-Content -Path .gclient
+          gclient sync --nohooks --no-history --shallow
+          New-Item -ItemType Directory -Force -Path 'src/build/util'
+          [int]([datetimeoffset]::Now.ToUnixTimeSeconds()) | Out-File -FilePath 'src/build/util/LASTCHANGE.committime' -Encoding ascii
+          "LASTCHANGE=d0c0fbd3" | Out-File -FilePath 'src/build/util/LASTCHANGE' -Encoding ascii
+
+      - name: Set up GN
+        shell: pwsh
+        run: |-
+          New-Item -ItemType Directory -Force -Path '.\gn-bin'
+          Invoke-WebRequest -Uri 'https://chrome-infra-packages.appspot.com/dl/gn/gn/windows-amd64/+/latest' -OutFile '.\gn-windows-amd64.zip'
+          Expand-Archive -Path '.\gn-windows-amd64.zip' -DestinationPath '.\gn-bin'
+          echo "$(Get-Item .\gn-bin | Select-Object -ExpandProperty FullName)" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
+
+      - name: Build WebRTC
+        shell: pwsh
+        run: |-
+          python libcs/dep/_google-webrtc/src/tools/clang/scripts/update.py
+          Set-Location libcs/dep/_google-webrtc/src
+          $env:DEPOT_TOOLS_WIN_TOOLCHAIN="0"
+          $env:GYP_GENERATORS="msvs-ninja,ninja"
+          $env:GYP_MSVS_OVERRIDE_PATH=$env:VCINSTALLDIR
+          if ($env:GYP_MSVS_OVERRIDE_PATH.EndsWith("\VC\")) {
+              $env:GYP_MSVS_OVERRIDE_PATH = $env:GYP_MSVS_OVERRIDE_PATH.Substring(0, $env:GYP_MSVS_OVERRIDE_PATH.Length - 4)
+          } elseif ($env:GYP_MSVS_OVERRIDE_PATH.EndsWith("\VC")) {
+              $env:GYP_MSVS_OVERRIDE_PATH = $env:GYP_MSVS_OVERRIDE_PATH.Substring(0, $env:GYP_MSVS_OVERRIDE_PATH.Length - 3)
+          } else {
+              $env:GYP_MSVS_OVERRIDE_PATH = Split-Path $env:GYP_MSVS_OVERRIDE_PATH -Parent
+          }
+          $env:GYP_MSVS_VERSION="2022"
+          $env:PATH+=";$env:GYP_MSVS_OVERRIDE_PATH\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja"
+          gn gen out/release --args="clang_use_chrome_plugins=false is_clang=true enable_libaom=false is_component_build=false is_debug=false libyuv_disable_jpeg=true libyuv_include_tests=false rtc_build_examples=false rtc_build_tools=false rtc_enable_grpc=false rtc_enable_protobuf=false rtc_include_builtin_audio_codecs=false rtc_include_dav1d_in_internal_decoder_factory=false rtc_include_ilbc=false rtc_include_internal_audio_device=false rtc_include_tests=false rtc_use_h264=false rtc_use_x11=false treat_warnings_as_errors=false use_custom_libcxx=false use_gold=false use_lld=true use_rtti=true use_sysroot=false"
+          ninja -C out/release
+
+      - name: Package WebRTC artifact
+        shell: pwsh
+        run: |-
+          $artifactRoot = Join-Path $env:RUNNER_TEMP 'webrtc-${{ matrix.target }}'
+          $libDir = Join-Path $artifactRoot 'lib'
+          New-Item -ItemType Directory -Force -Path $libDir | Out-Null
+          Copy-Item -Path '${{ matrix.output_lib }}' -Destination (Join-Path $libDir '${{ matrix.artifact_lib_name }}') -Force
+          $metadata = @{
+            name = 'webrtc'
+            artifact_version = 1
+            target = '${{ matrix.target }}'
+            os = 'windows'
+            arch = '${{ matrix.arch }}'
+            library_type = 'static'
+            webrtc_commit = (git -C libcs/dep/_google-webrtc/src rev-parse HEAD)
+            built_by = 'github-actions'
+          } | ConvertTo-Json
+          Set-Content -Path (Join-Path $artifactRoot 'metadata.json') -Value $metadata -Encoding utf8
+          tar -C $artifactRoot -czf (Join-Path $env:RUNNER_TEMP 'webrtc-${{ matrix.target }}.tar.gz') .
+
+      - name: Upload WebRTC archive
+        uses: actions/upload-artifact@v4
+        with:
+          name: webrtc-${{ matrix.target }}
+          path: ${{ runner.temp }}/webrtc-${{ matrix.target }}.tar.gz
+
+      - name: Upload release asset
+        shell: pwsh
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |-
+          gh release upload "${{ needs.ensure-release.outputs.release_tag }}" "$env:RUNNER_TEMP/webrtc-${{ matrix.target }}.tar.gz" --clobber
+
