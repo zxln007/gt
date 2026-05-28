@@ -76,15 +76,15 @@ jobs:
 
       - name: Build msquic
         run: |-
-          cd libcs
+          cd core
           make build_msquic TARGET=${{ matrix.target }} MSQUIC_MODE=build
 
       - name: Package msquic artifact
         run: |-
           artifact_root="$RUNNER_TEMP/msquic-${{ matrix.target }}"
           mkdir -p "$artifact_root/include" "$artifact_root/lib"
-          cp -a libcs/dep/_msquic/src/inc/. "$artifact_root/include/"
-          cp "libcs/dep/_msquic/out/${{ matrix.target }}/bin/Release/libmsquic.a" "$artifact_root/lib/"
+          cp -a core/dep/_msquic/src/inc/. "$artifact_root/include/"
+          cp "core/dep/_msquic/out/${{ matrix.target }}/bin/Release/libmsquic.a" "$artifact_root/lib/"
           cat > "$artifact_root/metadata.json" <<EOF
           {
             "name": "msquic",
@@ -94,7 +94,7 @@ jobs:
             "arch": "${{ matrix.arch }}",
             "library_type": "static",
             "rename_symbols_applied": true,
-            "msquic_commit": "$(git -C libcs/dep/_msquic rev-parse HEAD)",
+            "msquic_commit": "$(git -C core/dep/_msquic rev-parse HEAD)",
             "built_by": "github-actions"
           }
           EOF
@@ -137,7 +137,7 @@ jobs:
 
       - name: Build msquic
         run: |-
-          cd libcs
+          cd core
           LLVM_OBJCOPY="$(brew --prefix llvm)/bin/llvm-objcopy"
           make build_msquic TARGET=${{ matrix.target }} MSQUIC_MODE=build OBJCOPY="$LLVM_OBJCOPY"
 
@@ -145,8 +145,8 @@ jobs:
         run: |-
           artifact_root="$RUNNER_TEMP/msquic-${{ matrix.target }}"
           mkdir -p "$artifact_root/include" "$artifact_root/lib"
-          cp -a libcs/dep/_msquic/src/inc/. "$artifact_root/include/"
-          cp "libcs/dep/_msquic/out/${{ matrix.target }}/bin/Release/libmsquic.a" "$artifact_root/lib/"
+          cp -a core/dep/_msquic/src/inc/. "$artifact_root/include/"
+          cp "core/dep/_msquic/out/${{ matrix.target }}/bin/Release/libmsquic.a" "$artifact_root/lib/"
           cat > "$artifact_root/metadata.json" <<EOF
           {
             "name": "msquic",
@@ -156,7 +156,7 @@ jobs:
             "arch": "${{ matrix.arch }}",
             "library_type": "static",
             "rename_symbols_applied": true,
-            "msquic_commit": "$(git -C libcs/dep/_msquic rev-parse HEAD)",
+            "msquic_commit": "$(git -C core/dep/_msquic rev-parse HEAD)",
             "built_by": "github-actions"
           }
           EOF
@@ -185,7 +185,7 @@ jobs:
         include:
           - target: x86_64-pc-windows-msvc
             arch: amd64
-            output_lib: libcs/dep/_msquic/build/windows/x64_schannel/obj/Release/msquic.lib
+            output_lib: core/dep/_msquic/build/windows/x64_schannel/bin/Release/msquic.lib
             artifact_lib_name: msquic.lib
 
     steps:
@@ -207,7 +207,7 @@ jobs:
       - name: Build msquic
         shell: pwsh
         run: |-
-          Set-Location libcs/dep/_msquic
+          Set-Location core/dep/_msquic
           ./scripts/build.ps1 -Config Release -Static -DisableTest -DisableTools -StaticCRT
 
       - name: Package msquic artifact
@@ -218,7 +218,7 @@ jobs:
           $libDir = Join-Path $artifactRoot 'lib'
           New-Item -ItemType Directory -Force -Path $includeDir | Out-Null
           New-Item -ItemType Directory -Force -Path $libDir | Out-Null
-          Copy-Item -Path 'libcs/dep/_msquic/src/inc/*' -Destination $includeDir -Recurse -Force
+          Copy-Item -Path 'core/dep/_msquic/src/inc/*' -Destination $includeDir -Recurse -Force
           Copy-Item -Path '${{ matrix.output_lib }}' -Destination (Join-Path $libDir '${{ matrix.artifact_lib_name }}') -Force
           $metadata = @{
             name = 'msquic'
@@ -228,7 +228,7 @@ jobs:
             arch = '${{ matrix.arch }}'
             library_type = 'static'
             rename_symbols_applied = $false
-            msquic_commit = (git -C libcs/dep/_msquic rev-parse HEAD)
+            msquic_commit = (git -C core/dep/_msquic rev-parse HEAD)
             built_by = 'github-actions'
           } | ConvertTo-Json
           Set-Content -Path (Join-Path $artifactRoot 'metadata.json') -Value $metadata -Encoding utf8

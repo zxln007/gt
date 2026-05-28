@@ -279,7 +279,7 @@ jobs:
         run: |-
           $WORK_DIR = Get-Location
           $MSQUIC_DIR = "$WORK_DIR/core/dep/_msquic"
-          $MSQUIC_OUT_DIR = "$MSQUIC_DIR/build/windows/x64_schannel/obj/Release"
+          $MSQUIC_OUT_DIR = "$MSQUIC_DIR/build/windows/x64_schannel/bin/Release"
           
           Set-Location $MSQUIC_DIR
           Write-Host "Preparing msquic environment"

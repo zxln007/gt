@@ -2,13 +2,13 @@ $WORK_DIR = $PSScriptRoot
 $WEBRTC_DIR="$WORK_DIR/core/dep/_google-webrtc"
 $MSQUIC_DIR="$WORK_DIR/core/dep/_msquic"
 $WEBRTC_OUT_DIR="$WEBRTC_DIR/src/out/release/obj"
-$MSQUIC_OUT_DIR="$MSQUIC_DIR/build/windows/x64_schannel/obj/Release"
+$MSQUIC_OUT_DIR="$MSQUIC_DIR/build/windows/x64_schannel/bin/Release"
 $WEB_FRONT="$WORK_DIR/admin"
 
 $env:CC="clang"
 $env:CXX="clang++"
 $env:CGO_CXXFLAGS="-I$WEBRTC_DIR/src -I$WEBRTC_DIR/src/third_party/abseil-cpp -I$MSQUIC_DIR/src/inc -std=c++20 -DWEBRTC_WIN -DQUIC_API_ENABLE_PREVIEW_FEATURES -DNOMINMAX"
-$env:CGO_LDFLAGS="-L$MSQUIC_DIR/build/windows/x64_schannel/obj/Release -L$WEBRTC_DIR/src/out/release/obj -lmsquic.lib -lwebrtc.lib"
+$env:CGO_LDFLAGS="-L$MSQUIC_DIR/build/windows/x64_schannel/bin/Release -L$WEBRTC_DIR/src/out/release/obj -lmsquic.lib -lwebrtc.lib"
 $env:CARGO_CFG_TARGET_OS="windows"
 $env:RUSTFLAGS="-L $MSQUIC_OUT_DIR -l msquic -L $WEBRTC_OUT_DIR -l webrtc"
 
@@ -148,6 +148,9 @@ function release_gt_lib{
 
     Set-Location "$WORK_DIR/core"
     Write-Host "开始编译gt server/client"
+    New-Item -ItemType Directory -Force -Path "release/windows"
+    Copy-Item -Path "$MSQUIC_OUT_DIR/msquic.lib" -Destination "release/windows/"
+    Copy-Item -Path "$WEBRTC_OUT_DIR/webrtc.lib" -Destination "release/windows/"
     go build -tags release -trimpath -ldflags "-s -w"  -buildmode=c-archive -o release/windows/gt.lib ./lib/export
     if (Test-Path -Path "./release/windows/gt.lib")
     {
