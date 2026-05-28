@@ -141,6 +141,11 @@ jobs:
         if: runner.os == 'Windows'
         uses: ilammy/msvc-dev-cmd@v1
 
+      - name: Fix GNU link clash on Windows
+        if: runner.os == 'Windows'
+        shell: bash
+        run: rm -f /usr/bin/link.exe
+
       - name: Set up .NET (Windows only)
         if: runner.os == 'Windows'
         uses: actions/setup-dotnet@v4
