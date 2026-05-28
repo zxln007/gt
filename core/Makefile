@@ -115,7 +115,7 @@ GO_OUT_FILE_NAME?=libcs.a
 ifeq ($(GOOS),windows)
 	MSQUIC_ARTIFACT_LIB_NAME:=msquic.lib
 	WEBRTC_ARTIFACT_LIB_NAME:=webrtc.lib
-	DEF_WEBRTC_COND?=-DWEBRTC_WIN -DNOMINMAX
+	DEF_WEBRTC_COND?=-DWEBRTC_WIN -DNOMINMAX -DWIN32_LEAN_AND_MEAN -D_WINSOCKAPI_
 	RUST_TARGET_DIR:=windows
 	GO_OUT_FILE_NAME:=gt.lib
 endif
@@ -139,6 +139,10 @@ export CGO_CXXFLAGS=-I$(PWD)/dep/_google-webrtc/src \
 	-I$(PWD)/dep/_google-webrtc/src/third_party/abseil-cpp \
 	-I$(MSQUIC_INCLUDE_DIR) \
 	-std=c++20 $(DEF_WEBRTC_COND) -DQUIC_API_ENABLE_PREVIEW_FEATURES
+export CGO_CFLAGS=
+ifeq ($(GOOS),windows)
+	export CGO_CFLAGS=-DWEBRTC_WIN -DNOMINMAX -DWIN32_LEAN_AND_MEAN -D_WINSOCKAPI_
+endif
 export CGO_LDFLAGS= $(DEF_LDFLAGS)
 ifneq ($(GOOS),windows)
 	export CGO_LDFLAGS+= -pthread

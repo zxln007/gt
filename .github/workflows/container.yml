@@ -95,15 +95,15 @@ jobs:
           #   arch: amd64
           #   build_desktop: true
 
-          # macOS ARM64
-          - target: aarch64-apple-darwin
-            os: macos-latest
-            goos: darwin
-            goarch: arm64
-            rust_target: aarch64-apple-darwin
-            binary_suffix: macos-aarch64
-            arch: arm64
-            build_desktop: true
+          # # macOS ARM64
+          # - target: aarch64-apple-darwin
+          #   os: macos-latest
+          #   goos: darwin
+          #   goarch: arm64
+          #   rust_target: aarch64-apple-darwin
+          #   binary_suffix: macos-aarch64
+          #   arch: arm64
+          #   build_desktop: true
 
           # Windows AMD64
           - target: x86_64-pc-windows-msvc
