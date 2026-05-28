@@ -459,12 +459,14 @@ jobs:
           echo "Frontend has no package.json, skipping build steps"
 
           # Generate wails bindings and build native desktop executable
+          cd desktop
           wails3 generate bindings
           if [ "${{ matrix.goos }}" = "windows" ]; then
             go build -tags production -trimpath -ldflags="-w -s -H windowsgui" -o bin/GT-Desktop.exe
           else
             go build -tags production -trimpath -ldflags="-w -s" -o bin/GT-Desktop
           fi
+          cd ..
 
       - name: Archive GT artifacts
         uses: actions/upload-artifact@v4

@@ -87,14 +87,6 @@ MSQUIC_MODE?=build
 MSQUIC_BUILD_ROOT?=$(PWD)/dep/_msquic
 MSQUIC_PREBUILT_ROOT?=$(PWD)/prebuilt/msquic/$(TARGET)
 MSQUIC_ARTIFACT_LIB_NAME?=libmsquic.a
-ifeq ($(MSQUIC_MODE),prebuilt)
-	MSQUIC_INCLUDE_DIR:=$(MSQUIC_PREBUILT_ROOT)/include
-	MSQUIC_LIB_FILE:=$(MSQUIC_PREBUILT_ROOT)/lib/$(MSQUIC_ARTIFACT_LIB_NAME)
-	MSQUIC_METADATA_FILE:=$(MSQUIC_PREBUILT_ROOT)/metadata.json
-else
-	MSQUIC_INCLUDE_DIR:=$(MSQUIC_BUILD_ROOT)/src/inc
-	MSQUIC_LIB_FILE:=$(MSQUIC_BUILD_ROOT)/out/$(TARGET)/bin/Release/libmsquic.a
-endif
 
 WEBRTC_MODE?=build
 WEBRTC_BUILD_ROOT?=$(PWD)/dep/_google-webrtc/src
@@ -106,11 +98,20 @@ ifeq ($(GOOS),windows)
 	WEBRTC_ARTIFACT_LIB_NAME:=webrtc.lib
 endif
 
+ifeq ($(MSQUIC_MODE),prebuilt)
+	MSQUIC_INCLUDE_DIR:=$(MSQUIC_PREBUILT_ROOT)/include
+	MSQUIC_LIB_FILE:=$(MSQUIC_PREBUILT_ROOT)/lib/$(MSQUIC_ARTIFACT_LIB_NAME)
+	MSQUIC_METADATA_FILE:=$(MSQUIC_PREBUILT_ROOT)/metadata.json
+else
+	MSQUIC_INCLUDE_DIR:=$(MSQUIC_BUILD_ROOT)/src/inc
+	MSQUIC_LIB_FILE:=$(MSQUIC_BUILD_ROOT)/out/$(TARGET)/bin/Release/$(MSQUIC_ARTIFACT_LIB_NAME)
+endif
+
 ifeq ($(WEBRTC_MODE),prebuilt)
 	WEBRTC_LIB_FILE:=$(WEBRTC_PREBUILT_ROOT)/lib/$(WEBRTC_ARTIFACT_LIB_NAME)
 	WEBRTC_METADATA_FILE:=$(WEBRTC_PREBUILT_ROOT)/metadata.json
 else
-	WEBRTC_LIB_FILE:=$(WEBRTC_BUILD_ROOT)/out/release-$(TARGET)/obj/libwebrtc.a
+	WEBRTC_LIB_FILE:=$(WEBRTC_BUILD_ROOT)/out/release-$(TARGET)/obj/$(WEBRTC_ARTIFACT_LIB_NAME)
 endif
 export CGO_CXXFLAGS=-I$(PWD)/dep/_google-webrtc/src \
 	-I$(PWD)/dep/_google-webrtc/src/third_party/abseil-cpp \
