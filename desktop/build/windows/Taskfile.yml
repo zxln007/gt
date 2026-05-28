@@ -65,8 +65,8 @@ tasks:
       CC: D:\Work\tools\gt\desktop\build\windows\clang-cgo.exe
       CXX: D:\Work\tools\gt\desktop\build\windows\clangxx-cgo.exe
       CGO_CFLAGS: -Qunused-arguments
-      CGO_CXXFLAGS: -ID:/Work/tools/gt/libcs/dep/_google-webrtc/src -ID:/Work/tools/gt/libcs/dep/_google-webrtc/src/third_party/abseil-cpp -ID:/Work/tools/gt/libcs/dep/_msquic/src/inc -std=c++20 -DWEBRTC_WIN -DQUIC_API_ENABLE_PREVIEW_FEATURES -DNOMINMAX -Qunused-arguments
-      CGO_LDFLAGS: -LD:/Work/tools/gt/libcs/dep/_msquic/build/windows/x64_schannel/obj/Release -LD:/Work/tools/gt/libcs/dep/_google-webrtc/src/out/release/obj -lmsquic.lib -lwebrtc.lib -Qunused-arguments
+      CGO_CXXFLAGS: -ID:/Work/tools/gt/core/dep/_google-webrtc/src -ID:/Work/tools/gt/core/dep/_google-webrtc/src/third_party/abseil-cpp -ID:/Work/tools/gt/core/dep/_msquic/src/inc -std=c++20 -DWEBRTC_WIN -DQUIC_API_ENABLE_PREVIEW_FEATURES -DNOMINMAX -Qunused-arguments
+      CGO_LDFLAGS: -LD:/Work/tools/gt/core/dep/_msquic/build/windows/x64_schannel/obj/Release -LD:/Work/tools/gt/core/dep/_google-webrtc/src/out/release/obj -lmsquic.lib -lwebrtc.lib -Qunused-arguments
 
   build:docker:
     summary: Cross-compiles for Windows using Docker with Zig (for CGO builds on non-Windows)

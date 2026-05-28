@@ -1,11 +1,11 @@
 [workspace]
-members = ["bin"]
+members = ["cli"]
 resolver = "2"
 
 [workspace.package]
-authors = ["Zhiyi Weng"]
-version = "2.2.2"
-edition = "2021"
+authors = ["Zhiyi Weng","Xuyang Zhang"]
+version = "2.3.0"
+edition = "2026"
 description = "Fast WebSocket(s)/HTTP(s)/TCP relay proxy with WebRTC P2P supports."
 
 [patch.crates-io]

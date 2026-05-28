@@ -1,9 +1,9 @@
 $WORK_DIR = $PSScriptRoot
-$WEBRTC_DIR="$WORK_DIR/libcs/dep/_google-webrtc"
-$MSQUIC_DIR="$WORK_DIR/libcs/dep/_msquic"
+$WEBRTC_DIR="$WORK_DIR/core/dep/_google-webrtc"
+$MSQUIC_DIR="$WORK_DIR/core/dep/_msquic"
 $WEBRTC_OUT_DIR="$WEBRTC_DIR/src/out/release/obj"
 $MSQUIC_OUT_DIR="$MSQUIC_DIR/build/windows/x64_schannel/obj/Release"
-$WEB_FRONT="$WORK_DIR/libcs/web/front"
+$WEB_FRONT="$WORK_DIR/core/web/front"
 
 $env:CC="clang"
 $env:CXX="clang++"
@@ -122,11 +122,11 @@ function release_front{
         winget install --id=OpenJS.NodeJS  -e
     }
 
-    if(Test-Path -Path "$WORK_DIR/libcs/client/web/dist"){
-        Remove-Item -Path "$WORK_DIR/libcs/client/web/dist" -Recurse -Force
+    if(Test-Path -Path "$WORK_DIR/core/client/web/dist"){
+        Remove-Item -Path "$WORK_DIR/core/client/web/dist" -Recurse -Force
     }
-    if(Test-Path -Path "$WORK_DIR/libcs/server/web/dist"){
-        Remove-Item -Path "$WORK_DIR/libcs/server/web/dist" -Recurse -Force
+    if(Test-Path -Path "$WORK_DIR/core/server/web/dist"){
+        Remove-Item -Path "$WORK_DIR/core/server/web/dist" -Recurse -Force
     }
     if (Test-Path -Path "$WEB_FRONT/dist")
     {
@@ -137,8 +137,8 @@ function release_front{
 
     if (Test-Path -Path "$WEB_FRONT/dist")
     {
-        Copy-Item -Path "$WEB_FRONT/dist" -Destination "$WORK_DIR/libcs/client/web/dist" -Recurse
-        Copy-Item -Path "$WEB_FRONT/dist" -Destination "$WORK_DIR/libcs/server/web/dist" -Recurse
+        Copy-Item -Path "$WEB_FRONT/dist" -Destination "$WORK_DIR/core/client/web/dist" -Recurse
+        Copy-Item -Path "$WEB_FRONT/dist" -Destination "$WORK_DIR/core/server/web/dist" -Recurse
         Write-Host "web front编译完成"
     }
 }
@@ -146,7 +146,7 @@ function release_front{
 function release_gt_lib{
     release_front
 
-    Set-Location "$WORK_DIR/libcs"
+    Set-Location "$WORK_DIR/core"
     Write-Host "开始编译gt server/client"
     go build -tags release -trimpath -ldflags "-s -w"  -buildmode=c-archive -o release/windows/gt.lib ./lib/export
     if (Test-Path -Path "./release/windows/gt.lib")

@@ -1,7 +1,7 @@
-diff --git a/libcs/dep/_google-webrtc/src/call/payload_type_picker.cc b/libcs/dep/_google-webrtc/src/call/payload_type_picker.cc
+diff --git a/core/dep/_google-webrtc/src/call/payload_type_picker.cc b/core/dep/_google-webrtc/src/call/payload_type_picker.cc
 index be3885d..229aa18 100644
---- a/libcs/dep/_google-webrtc/src/call/payload_type_picker.cc
-+++ b/libcs/dep/_google-webrtc/src/call/payload_type_picker.cc
+--- a/core/dep/_google-webrtc/src/call/payload_type_picker.cc
++++ b/core/dep/_google-webrtc/src/call/payload_type_picker.cc
 @@ -369,7 +369,7 @@
  RTCError RtpHeaderExtensionRecorder::AddMapping(int id,
                                                  absl::string_view uri,
@@ -20,9 +20,9 @@ index be3885d..229aa18 100644
    if (it == uri_to_id_.end()) {
      return RTCError(RTCErrorType::INVALID_PARAMETER,
                      "No ID found for extension");
-diff --git a/libcs/dep/_google-webrtc/src/third_party/libvpx/BUILD.gn b/libcs/dep/_google-webrtc/src/third_party/libvpx/BUILD.gn
---- a/libcs/dep/_google-webrtc/src/third_party/libvpx/BUILD.gn
-+++ b/libcs/dep/_google-webrtc/src/third_party/libvpx/BUILD.gn
+diff --git a/core/dep/_google-webrtc/src/third_party/libvpx/BUILD.gn b/core/dep/_google-webrtc/src/third_party/libvpx/BUILD.gn
+--- a/core/dep/_google-webrtc/src/third_party/libvpx/BUILD.gn
++++ b/core/dep/_google-webrtc/src/third_party/libvpx/BUILD.gn
 @@ -373,7 +373,7 @@
    # SVE is disabled for Windows due to a limitation with clang-cl-18:
    # third_party\llvm-build\Release+Asserts\lib\clang\18\include\arm_sve.h(271,1):
@@ -41,9 +41,9 @@ diff --git a/libcs/dep/_google-webrtc/src/third_party/libvpx/BUILD.gn b/libcs/de
        deps += [
          ":libvpx_intrinsics_sve",
          ":libvpx_intrinsics_sve2",
-diff --git a/libcs/dep/_google-webrtc/src/third_party/libaom/BUILD.gn b/libcs/dep/_google-webrtc/src/third_party/libaom/BUILD.gn
---- a/libcs/dep/_google-webrtc/src/third_party/libaom/BUILD.gn
-+++ b/libcs/dep/_google-webrtc/src/third_party/libaom/BUILD.gn
+diff --git a/core/dep/_google-webrtc/src/third_party/libaom/BUILD.gn b/core/dep/_google-webrtc/src/third_party/libaom/BUILD.gn
+--- a/core/dep/_google-webrtc/src/third_party/libaom/BUILD.gn
++++ b/core/dep/_google-webrtc/src/third_party/libaom/BUILD.gn
 @@ -265,7 +265,7 @@
    # There are known problems with LLVM-based compilers targeting Windows for
    # SVE code generation. Since there are no client Windows devices that
@@ -62,10 +62,10 @@ diff --git a/libcs/dep/_google-webrtc/src/third_party/libaom/BUILD.gn b/libcs/de
        deps += [
          ":libaom_intrinsics_sve",
          ":libaom_intrinsics_sve2",
-diff --git a/libcs/dep/_google-webrtc/src/rtc_base/platform_thread_types.cc b/libcs/dep/_google-webrtc/src/rtc_base/platform_thread_types.cc
+diff --git a/core/dep/_google-webrtc/src/rtc_base/platform_thread_types.cc b/core/dep/_google-webrtc/src/rtc_base/platform_thread_types.cc
 index 45bf7a1..3a36ef7 100644
---- a/libcs/dep/_google-webrtc/src/rtc_base/platform_thread_types.cc
-+++ b/libcs/dep/_google-webrtc/src/rtc_base/platform_thread_types.cc
+--- a/core/dep/_google-webrtc/src/rtc_base/platform_thread_types.cc
++++ b/core/dep/_google-webrtc/src/rtc_base/platform_thread_types.cc
 @@ -16,7 +16,7 @@
  #include <sys/prctl.h>
  #include <sys/syscall.h>

@@ -154,11 +154,11 @@ jobs:
           fi
 
           mkdir -p /tmp/msquic-download
-          rm -rf libcs/prebuilt/msquic/${{ matrix.target }}
+          rm -rf core/prebuilt/msquic/${{ matrix.target }}
           if gh release download "$MSQUIC_RELEASE_TAG" --pattern "msquic-${{ matrix.target }}.tar.gz" --dir /tmp/msquic-download --clobber; then
             echo "Prebuilt msquic found on Release!"
-            mkdir -p "libcs/prebuilt/msquic/${{ matrix.target }}"
-            tar -xzf "/tmp/msquic-download/msquic-${{ matrix.target }}.tar.gz" -C "libcs/prebuilt/msquic/${{ matrix.target }}"
+            mkdir -p "core/prebuilt/msquic/${{ matrix.target }}"
+            tar -xzf "/tmp/msquic-download/msquic-${{ matrix.target }}.tar.gz" -C "core/prebuilt/msquic/${{ matrix.target }}"
             echo "mode=prebuilt" >> "$GITHUB_OUTPUT"
           else
             echo "Prebuilt msquic not found on Release. Falling back to build mode and will publish it afterwards."
@@ -181,11 +181,11 @@ jobs:
           fi
 
           mkdir -p /tmp/webrtc-download
-          rm -rf libcs/prebuilt/webrtc/${{ matrix.target }}
+          rm -rf core/prebuilt/webrtc/${{ matrix.target }}
           if gh release download "$WEBRTC_RELEASE_TAG" --pattern "webrtc-${{ matrix.target }}.tar.gz" --dir /tmp/webrtc-download --clobber; then
             echo "Prebuilt WebRTC found on Release!"
-            mkdir -p "libcs/prebuilt/webrtc/${{ matrix.target }}"
-            tar -xzf "/tmp/webrtc-download/webrtc-${{ matrix.target }}.tar.gz" -C "libcs/prebuilt/webrtc/${{ matrix.target }}"
+            mkdir -p "core/prebuilt/webrtc/${{ matrix.target }}"
+            tar -xzf "/tmp/webrtc-download/webrtc-${{ matrix.target }}.tar.gz" -C "core/prebuilt/webrtc/${{ matrix.target }}"
             echo "mode=prebuilt" >> "$GITHUB_OUTPUT"
           else
             echo "Prebuilt WebRTC not found on Release. Falling back to build mode and will publish it afterwards."
@@ -201,7 +201,7 @@ jobs:
           git clone --depth=1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
           export PATH=$PWD/depot_tools:$PATH
           echo "$PWD/depot_tools" >> $GITHUB_PATH
-          cd libcs/dep/_google-webrtc
+          cd core/dep/_google-webrtc
           gclient config --spec 'solutions = [ { "name": "src", "url": "https://webrtc.googlesource.com/src.git", "managed": False, "custom_deps": {}, }, ]'
           gclient sync --nohooks --no-history --shallow
           mkdir -p src/build/util
@@ -218,7 +218,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
         shell: bash
         run: |-
-          cd libcs
+          cd core
           make build_msquic TARGET=${{ matrix.target }} MSQUIC_MODE=build
           
           artifact_root="$RUNNER_TEMP/msquic-${{ matrix.target }}"
@@ -255,7 +255,7 @@ jobs:
           GH_REPO: ${{ github.repository }}
         shell: bash
         run: |-
-          cd libcs
+          cd core
           make build_webrtc TARGET=${{ matrix.target }} WEBRTC_MODE=build
           
           artifact_root="$RUNNER_TEMP/webrtc-${{ matrix.target }}"
@@ -304,7 +304,7 @@ jobs:
 
       - name: clean-space
         if: runner.os == 'Linux'
-        run: sudo rm -rf /home/runner/work/gt/gt/libcs/dep
+        run: sudo rm -rf /home/runner/work/gt/gt/core/dep
 
 
   # =========================================================================

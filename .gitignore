@@ -64,3 +64,6 @@ desktop/bin/
 desktop/*.exe
 desktop/frontend/node_modules/
 desktop/frontend/dist/
+AGENTS.md
+CLAUDE.md
+cli/*.exe

@@ -23,8 +23,8 @@ fn main() {
     let os = env::var("CARGO_CFG_TARGET_OS").unwrap();
     match os.as_str() {
         "linux" => {
-            println!("cargo:rerun-if-changed=libcs/release/{target}");
-            println!("cargo:rustc-link-search=libcs/release/{target}");
+            println!("cargo:rerun-if-changed=core/release/{target}");
+            println!("cargo:rustc-link-search=core/release/{target}");
             println!("cargo:rustc-link-lib=static=cs");
             println!("cargo:rustc-link-lib=static=webrtc");
             println!("cargo:rustc-link-lib=static=msquic");
@@ -42,8 +42,8 @@ fn main() {
             println!("cargo:rustc-link-lib=static=stdc++");
         }
         "macos" => {
-            println!("cargo:rerun-if-changed=libcs/release/{target}");
-            println!("cargo:rustc-link-search=libcs/release/{target}");
+            println!("cargo:rerun-if-changed=core/release/{target}");
+            println!("cargo:rustc-link-search=core/release/{target}");
             println!("cargo:rustc-link-lib=static=cs");
             println!("cargo:rustc-link-lib=static=webrtc");
             println!("cargo:rustc-link-lib=static=msquic");
@@ -57,8 +57,8 @@ fn main() {
             println!("cargo:rustc-link-lib=framework=AVFoundation");
         }
         "windows" => {
-            println!("cargo:rerun-if-changed=libcs/release/windows");
-            println!("cargo:rustc-link-search=libcs/release/windows");
+            println!("cargo:rerun-if-changed=core/release/windows");
+            println!("cargo:rustc-link-search=core/release/windows");
             println!("cargo:rustc-link-lib=static=gt");
         }
         os => {

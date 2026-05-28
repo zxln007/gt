@@ -49,4 +49,4 @@ require (
 	gopkg.in/warnings.v0 v0.1.2 // indirect
 )
 
-replace github.com/isrc-cas/gt => ../libcs
+replace github.com/isrc-cas/gt => ../core
