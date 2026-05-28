@@ -42,5 +42,9 @@ release_target:
 	cd ./core && TARGET=$(TARGET) GOOS=$(GOOS) GOARCH=$(GOARCH) RUST_TARGET=$(RUST_TARGET) MSQUIC_MODE=$(MSQUIC_MODE) WEBRTC_MODE=$(WEBRTC_MODE) make release_lib
 	cargo build --target $(RUST_TARGET) -r
 	mkdir -p release
+ifeq ($(GOOS),windows)
+	cp target/$(RUST_TARGET)/release/gt.exe release/gt-$(BINARY_SUFFIX).exe
+else
 	cp target/$(RUST_TARGET)/release/gt release/gt-$(BINARY_SUFFIX)
+endif
 

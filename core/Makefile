@@ -100,6 +100,12 @@ WEBRTC_MODE?=build
 WEBRTC_BUILD_ROOT?=$(PWD)/dep/_google-webrtc/src
 WEBRTC_PREBUILT_ROOT?=$(PWD)/prebuilt/webrtc/$(TARGET)
 WEBRTC_ARTIFACT_LIB_NAME?=libwebrtc.a
+
+ifeq ($(GOOS),windows)
+	MSQUIC_ARTIFACT_LIB_NAME:=msquic.lib
+	WEBRTC_ARTIFACT_LIB_NAME:=webrtc.lib
+endif
+
 ifeq ($(WEBRTC_MODE),prebuilt)
 	WEBRTC_LIB_FILE:=$(WEBRTC_PREBUILT_ROOT)/lib/$(WEBRTC_ARTIFACT_LIB_NAME)
 	WEBRTC_METADATA_FILE:=$(WEBRTC_PREBUILT_ROOT)/metadata.json

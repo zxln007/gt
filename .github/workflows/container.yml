@@ -137,6 +137,20 @@ jobs:
         run: |-
           rustup target add ${{ matrix.rust_target }}
 
+      - name: Set up MSVC Developer Command Prompt
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Set up .NET (Windows only)
+        if: runner.os == 'Windows'
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+
+      - name: Set up CMake (Windows only)
+        if: runner.os == 'Windows'
+        uses: jwlawson/actions-setup-cmake@v2
+
       - name: Install system build dependencies
         if: runner.os == 'Linux'
         run: |-
@@ -217,8 +231,8 @@ jobs:
       # ---------------------------------------------------------------------
       # 5. Build and Publish msquic Prebuilt (On Cache Miss Only)
       # ---------------------------------------------------------------------
-      - name: Build & Publish msquic Prebuilt
-        if: steps.msquic.outputs.mode == 'build'
+      - name: Build & Publish msquic Prebuilt (Unix)
+        if: steps.msquic.outputs.mode == 'build' && runner.os != 'Windows'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
@@ -236,7 +250,7 @@ jobs:
             "name": "msquic",
             "artifact_version": 1,
             "target": "${{ matrix.target }}",
-            "os": "linux",
+            "os": "${{ matrix.goos }}",
             "arch": "${{ matrix.arch }}",
             "library_type": "static",
             "rename_symbols_applied": true,
@@ -251,11 +265,63 @@ jobs:
             gh release create "$MSQUIC_RELEASE_TAG" --title "$MSQUIC_RELEASE_TAG" --notes "Prebuilt msquic artifacts"
           gh release upload "$MSQUIC_RELEASE_TAG" "$RUNNER_TEMP/msquic-${{ matrix.target }}.tar.gz" --clobber
 
+      - name: Build & Publish msquic Prebuilt (Windows)
+        if: steps.msquic.outputs.mode == 'build' && runner.os == 'Windows'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        shell: pwsh
+        run: |-
+          $WORK_DIR = Get-Location
+          $MSQUIC_DIR = "$WORK_DIR/core/dep/_msquic"
+          $MSQUIC_OUT_DIR = "$MSQUIC_DIR/build/windows/x64_schannel/obj/Release"
+          
+          Set-Location $MSQUIC_DIR
+          Write-Host "Preparing msquic environment"
+          if (!(Test-Path -Path "$MSQUIC_DIR/artifacts")){
+            &./scripts/prepare-machine.ps1
+          }
+          Write-Host "msquic开始编译"
+          &./scripts/build.ps1 -Config Release -Clean -Static -DisableTest -DisableTools -StaticCRT
+          if (-not (Test-Path -Path "$MSQUIC_OUT_DIR/msquic.lib")) {
+            Write-Error "msquic编译失败"
+            exit 1
+          }
+          
+          Set-Location $WORK_DIR
+          $artifact_root = "$env:RUNNER_TEMP/msquic-${{ matrix.target }}"
+          New-Item -ItemType Directory -Force -Path "$artifact_root/include"
+          New-Item -ItemType Directory -Force -Path "$artifact_root/lib"
+          Copy-Item -Path "core/dep/_msquic/src/inc/*" -Destination "$artifact_root/include/" -Recurse -Force
+          Copy-Item -Path "$MSQUIC_OUT_DIR/msquic.lib" -Destination "$artifact_root/lib/"
+          
+          $commit = git -C core/dep/_msquic rev-parse HEAD
+          $metadata = @{
+            name = "msquic"
+            artifact_version = 1
+            target = "${{ matrix.target }}"
+            os = "windows"
+            arch = "${{ matrix.arch }}"
+            library_type = "static"
+            rename_symbols_applied = $false
+            msquic_commit = $commit
+            built_by = "github-actions"
+          } | ConvertTo-Json
+          $metadata | Out-File -FilePath "$artifact_root/metadata.json" -Encoding utf8
+          
+          tar -C "$artifact_root" -czf "$env:RUNNER_TEMP/msquic-${{ matrix.target }}.tar.gz" .
+          
+          gh release view "$env:MSQUIC_RELEASE_TAG" >$null 2>&1
+          if ($LastExitCode -ne 0) {
+            gh release create "$env:MSQUIC_RELEASE_TAG" --title "$env:MSQUIC_RELEASE_TAG" --notes "Prebuilt msquic artifacts"
+          }
+          gh release upload "$env:MSQUIC_RELEASE_TAG" "$env:RUNNER_TEMP/msquic-${{ matrix.target }}.tar.gz" --clobber
+
       # ---------------------------------------------------------------------
       # 6. Build and Publish WebRTC Prebuilt (On Cache Miss Only)
       # ---------------------------------------------------------------------
-      - name: Build & Publish WebRTC Prebuilt
-        if: steps.webrtc.outputs.mode == 'build'
+      - name: Build & Publish WebRTC Prebuilt (Unix)
+        if: steps.webrtc.outputs.mode == 'build' && runner.os != 'Windows'
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
@@ -272,7 +338,7 @@ jobs:
             "name": "webrtc",
             "artifact_version": 1,
             "target": "${{ matrix.target }}",
-            "os": "linux",
+            "os": "${{ matrix.goos }}",
             "arch": "${{ matrix.arch }}",
             "library_type": "static",
             "webrtc_commit": "$(git -C dep/_google-webrtc/src rev-parse HEAD)",
@@ -285,6 +351,67 @@ jobs:
           gh release view "$WEBRTC_RELEASE_TAG" >/dev/null 2>&1 || \
             gh release create "$WEBRTC_RELEASE_TAG" --title "$WEBRTC_RELEASE_TAG" --notes "Prebuilt WebRTC artifacts"
           gh release upload "$WEBRTC_RELEASE_TAG" "$RUNNER_TEMP/webrtc-${{ matrix.target }}.tar.gz" --clobber
+
+      - name: Build & Publish WebRTC Prebuilt (Windows)
+        if: steps.webrtc.outputs.mode == 'build' && runner.os == 'Windows'
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        shell: pwsh
+        run: |-
+          $WORK_DIR = Get-Location
+          $WEBRTC_DIR = "$WORK_DIR/core/dep/_google-webrtc"
+          $WEBRTC_OUT_DIR = "$WEBRTC_DIR/src/out/release/obj"
+          
+          $vsPath = ""
+          $vsWherePath = "${env:ProgramFiles(x86)}\Microsoft Visual Studio\Installer\vswhere.exe"
+          if (Test-Path $vsWherePath) {
+              $vsPath = & $vsWherePath -latest -property installationPath
+          }
+          if (-not $vsPath) {
+              $vsPath = "C:\Program Files\Microsoft Visual Studio\2022\Community"
+          }
+          $env:PATH += ";$vsPath\Common7\IDE\CommonExtensions\Microsoft\CMake\Ninja"
+          $env:DEPOT_TOOLS_WIN_TOOLCHAIN = "0"
+          $env:GYP_GENERATORS = "msvs-ninja,ninja"
+          $env:GYP_MSVS_OVERRIDE_PATH = $vsPath
+          $env:GYP_MSVS_VERSION = "2022"
+          
+          python3 "$WEBRTC_DIR/src/tools/clang/scripts/update.py"
+          
+          Set-Location "$WEBRTC_DIR/src"
+          gn gen out/release --args="clang_use_chrome_plugins=false is_clang=true enable_libaom=false is_component_build=false is_debug=false libyuv_disable_jpeg=true libyuv_include_tests=false rtc_build_examples=false rtc_build_tools=false rtc_enable_grpc=false rtc_enable_protobuf=false rtc_include_builtin_audio_codecs=false rtc_include_dav1d_in_internal_decoder_factory=false rtc_include_ilbc=false rtc_include_internal_audio_device=false rtc_include_tests=false rtc_use_h264=false rtc_use_x11=false treat_warnings_as_errors=false use_custom_libcxx=false use_gold=false use_lld=true use_rtti=true use_sysroot=false"
+          ninja -C out/release
+          if (-not (Test-Path -Path "$WEBRTC_OUT_DIR/webrtc.lib")) {
+            Write-Error "webrtc编译失败"
+            exit 1
+          }
+          
+          Set-Location $WORK_DIR
+          $artifact_root = "$env:RUNNER_TEMP/webrtc-${{ matrix.target }}"
+          New-Item -ItemType Directory -Force -Path "$artifact_root/lib"
+          Copy-Item -Path "$WEBRTC_OUT_DIR/webrtc.lib" -Destination "$artifact_root/lib/"
+          
+          $commit = git -C "$WEBRTC_DIR/src" rev-parse HEAD
+          $metadata = @{
+            name = "webrtc"
+            artifact_version = 1
+            target = "${{ matrix.target }}"
+            os = "windows"
+            arch = "${{ matrix.arch }}"
+            library_type = "static"
+            webrtc_commit = $commit
+            built_by = "github-actions"
+          } | ConvertTo-Json
+          $metadata | Out-File -FilePath "$artifact_root/metadata.json" -Encoding utf8
+          
+          tar -C "$artifact_root" -czf "$env:RUNNER_TEMP/webrtc-${{ matrix.target }}.tar.gz" .
+          
+          gh release view "$env:WEBRTC_RELEASE_TAG" >$null 2>&1
+          if ($LastExitCode -ne 0) {
+            gh release create "$env:WEBRTC_RELEASE_TAG" --title "$env:WEBRTC_RELEASE_TAG" --notes "Prebuilt WebRTC artifacts"
+          }
+          gh release upload "$env:WEBRTC_RELEASE_TAG" "$env:RUNNER_TEMP/webrtc-${{ matrix.target }}.tar.gz" --clobber
 
       # ---------------------------------------------------------------------
       # 7. Final GT Compilation
@@ -328,11 +455,8 @@ jobs:
             cp target/${{ matrix.rust_target }}/release/gt desktop/bin/gt
           fi
 
-          # Build frontend assets
-          cd desktop/frontend
-          npm install
-          npm run build
-          cd ..
+          # Skip frontend build since desktop/frontend uses pure static HTML/CSS/JS assets
+          echo "Frontend has no package.json, skipping build steps"
 
           # Generate wails bindings and build native desktop executable
           wails3 generate bindings
