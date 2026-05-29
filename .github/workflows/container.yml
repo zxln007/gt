@@ -245,6 +245,7 @@ jobs:
       # 4. Git Depot-Tools Checkout (Only on cache miss for WebRTC)
       # ---------------------------------------------------------------------
       - name: Sync WebRTC Dependencies
+        if: steps.webrtc.outputs.mode == 'build'
         shell: bash
         run: |-
           git clone --depth=1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
@@ -455,7 +456,8 @@ jobs:
       # ---------------------------------------------------------------------
       # 7. Final GT Compilation
       # ---------------------------------------------------------------------
-      - name: Compile GT single target
+      - name: Compile GT single target (Unix)
+        if: runner.os != 'Windows'
         shell: bash
         env:
           EFFECTIVE_MSQUIC_MODE: ${{ runner.os == 'Windows' && 'prebuilt' || steps.msquic.outputs.mode }}
@@ -469,6 +471,52 @@ jobs:
             BINARY_SUFFIX=${{ matrix.binary_suffix }} \
             MSQUIC_MODE=$EFFECTIVE_MSQUIC_MODE \
             WEBRTC_MODE=$EFFECTIVE_WEBRTC_MODE
+
+      - name: Build GT core library (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |-
+          cd ./core && \
+          TARGET=${{ matrix.target }} \
+          GOOS=${{ matrix.goos }} \
+          GOARCH=${{ matrix.goarch }} \
+          RUST_TARGET=${{ matrix.rust_target }} \
+          MSQUIC_MODE=prebuilt \
+          WEBRTC_MODE=prebuilt \
+          make release_lib
+
+      - name: Diagnose Windows native libraries
+        if: runner.os == 'Windows'
+        shell: pwsh
+        run: |-
+          $msquicLib = "core/release/windows/msquic.lib"
+          $gtLib = "core/release/windows/gt.lib"
+
+          Write-Host "=== msquic.lib file info ==="
+          Get-Item $msquicLib | Format-List FullName,Length,LastWriteTime
+
+          Write-Host "=== msquic.lib expected symbols ==="
+          & dumpbin /linkermember:1 $msquicLib | Select-String 'MsQuicOpenVersion|MsQuicClose'
+
+          Write-Host "=== gt.lib file info ==="
+          Get-Item $gtLib | Format-List FullName,Length,LastWriteTime
+
+          Write-Host "=== gt.lib members ==="
+          & lib /LIST $gtLib
+
+          Write-Host "=== gt.lib references to MsQuic symbols ==="
+          & dumpbin /symbols $gtLib | Select-String 'MsQuicOpenVersion|MsQuicClose|External'
+
+      - name: Compile GT single target (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        env:
+          RUST_TARGET: ${{ matrix.rust_target }}
+        run: |-
+          export RUSTFLAGS="${RUSTFLAGS:+$RUSTFLAGS }-C link-arg=/VERBOSE:LIB"
+          cargo build --target "${RUST_TARGET}" -r -vv
+          mkdir -p release
+          cp "target/${RUST_TARGET}/release/gt.exe" "release/gt-${{ matrix.binary_suffix }}.exe"
 
       # ---------------------------------------------------------------------
       # 8. Build Wails Desktop App (Only if build_desktop is enabled)
