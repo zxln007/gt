@@ -197,21 +197,21 @@ jobs:
         run: |-
           $lib = "core/prebuilt/msquic/${{ matrix.target }}/lib/msquic.lib"
           if (!(Test-Path -Path $lib)) {
-            "valid=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            Add-Content -Path $env:GITHUB_OUTPUT -Value "valid=false"
             exit 0
           }
 
           $members = & dumpbin /linkermember:1 $lib 2>&1
           if ($LASTEXITCODE -ne 0) {
-            "valid=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            Add-Content -Path $env:GITHUB_OUTPUT -Value "valid=false"
             exit 0
           }
 
           if (($members -match 'MsQuicOpenVersion') -and ($members -match 'MsQuicClose')) {
-            "valid=true" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            Add-Content -Path $env:GITHUB_OUTPUT -Value "valid=true"
           } else {
             Write-Host "Downloaded msquic prebuilt is missing expected exports; falling back to source build."
-            "valid=false" | Out-File -FilePath $env:GITHUB_OUTPUT -Append -Encoding utf8
+            Add-Content -Path $env:GITHUB_OUTPUT -Value "valid=false"
           }
 
       # ---------------------------------------------------------------------
@@ -295,7 +295,7 @@ jobs:
           gh release upload "$MSQUIC_RELEASE_TAG" "$RUNNER_TEMP/msquic-${{ matrix.target }}.tar.gz" --clobber
 
       - name: Build & Publish msquic Prebuilt (Windows)
-        if: runner.os == 'Windows' && (steps.msquic.outputs.mode == 'build' || steps.msquic_prebuilt_check.outputs.valid == 'false')
+        if: runner.os == 'Windows' && (steps.msquic.outputs.mode == 'build' || steps.msquic_prebuilt_check.outputs.valid != 'true')
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
