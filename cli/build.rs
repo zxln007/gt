@@ -25,7 +25,7 @@ fn emit_windows_bin_link_args() {
         .expect("cli crate should live under repo root");
     let windows_lib_dir = repo_root.join("core").join("release").join("windows");
 
-    for lib in ["gt.lib", "webrtc.lib", "msquic.lib"] {
+    for lib in ["webrtc.lib", "msquic.lib"] {
         let lib_path = windows_lib_dir.join(lib);
         println!(
             "cargo:rustc-link-arg-bin=gt={}",
