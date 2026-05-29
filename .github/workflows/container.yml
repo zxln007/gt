@@ -245,7 +245,6 @@ jobs:
       # 4. Git Depot-Tools Checkout (Only on cache miss for WebRTC)
       # ---------------------------------------------------------------------
       - name: Sync WebRTC Dependencies
-        if: steps.webrtc.outputs.mode == 'build'
         shell: bash
         run: |-
           git clone --depth=1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
