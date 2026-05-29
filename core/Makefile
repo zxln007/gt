@@ -438,6 +438,10 @@ ifeq ($(MSQUIC_MODE),prebuilt)
 	test -f "$(MSQUIC_METADATA_FILE)"
 	grep -Eq '"target"[[:space:]]*:[[:space:]]*"$(TARGET)"' "$(MSQUIC_METADATA_FILE)"
 	grep -Eq '"library_type"[[:space:]]*:[[:space:]]*"static"' "$(MSQUIC_METADATA_FILE)"
+ifeq ($(GOOS),windows)
+	dumpbin /linkermember:1 "$(MSQUIC_LIB_FILE)" | findstr /c:MsQuicOpenVersion >NUL
+	dumpbin /linkermember:1 "$(MSQUIC_LIB_FILE)" | findstr /c:MsQuicClose >NUL
+endif
 ifeq ($(TARGET_OS),linux)
 	grep -Eq '"rename_symbols_applied"[[:space:]]*:[[:space:]]*true' "$(MSQUIC_METADATA_FILE)"
 endif
