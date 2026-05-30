@@ -23,6 +23,7 @@ COFF_HEADER_SIZE = 20
 SECTION_HEADER_SIZE = 40
 PDATA_ENTRY_SIZE = 12
 RELOCATION_SIZE = 10
+LOG_SAMPLE_LIMIT = 12
 
 
 @dataclass
@@ -40,6 +41,27 @@ class Section:
     raw_offset: int
     relocation_offset: int
     relocation_count: int
+
+
+@dataclass
+class CoffSymbol:
+    name: str
+    value: int
+    section_number: int
+
+
+@dataclass
+class CoffObject:
+    sections: list[Section]
+    symbols: list[CoffSymbol]
+
+
+@dataclass
+class PdataEntry:
+    data: bytes
+    old_index: int
+    sort_key: tuple[int, int, int]
+    key_source: str
 
 
 def parse_member_name(raw_name: bytes, longnames: bytes | None) -> str:
@@ -102,7 +124,7 @@ def section_name(raw: bytes, string_table: bytes) -> str:
     return name.decode("utf-8", errors="replace")
 
 
-def parse_sections(obj: bytes) -> list[Section]:
+def parse_coff_object(obj: bytes) -> CoffObject:
     if len(obj) < COFF_HEADER_SIZE:
         raise ValueError("go.o is too small to be a COFF object")
 
@@ -128,10 +150,81 @@ def parse_sections(obj: bytes) -> list[Section]:
         relocation_count = struct.unpack_from("<H", obj, offset + 32)[0]
         sections.append(Section(name, raw_size, raw_offset, relocation_offset, relocation_count))
 
-    return sections
+    symbols: list[CoffSymbol] = []
+    symbol_index = 0
+    while symbol_index < symbol_count:
+        offset = symbol_table_offset + symbol_index * 18
+        if offset + 18 > len(obj):
+            raise ValueError("symbol table extends past end of go.o")
+
+        raw_name = obj[offset : offset + 8]
+        if raw_name[:4] == b"\x00\x00\x00\x00":
+            string_offset = struct.unpack_from("<I", raw_name, 4)[0]
+            end = string_table.find(b"\x00", string_offset)
+            if end == -1:
+                end = len(string_table)
+            name = string_table[string_offset:end].decode("utf-8", errors="replace")
+        else:
+            name = raw_name.rstrip(b"\x00").decode("utf-8", errors="replace")
+
+        value = struct.unpack_from("<I", obj, offset + 8)[0]
+        section_number = struct.unpack_from("<h", obj, offset + 12)[0]
+        aux_count = obj[offset + 17]
+        symbols.append(CoffSymbol(name, value, section_number))
+
+        for _ in range(aux_count):
+            symbols.append(CoffSymbol("", 0, 0))
+        symbol_index += 1 + aux_count
+
+    return CoffObject(sections, symbols)
 
 
-def sort_pdata_section(obj: bytearray, section: Section) -> bool:
+def pdata_relocations(section: Section, obj: bytes, entry_count: int) -> dict[int, list[bytes]]:
+    relocation_start = section.relocation_offset
+    relocation_end = relocation_start + section.relocation_count * RELOCATION_SIZE
+    if relocation_end > len(obj):
+        raise ValueError(f"{section.name} relocations extend past end of go.o")
+
+    by_entry: dict[int, list[bytes]] = {}
+    for offset in range(relocation_start, relocation_end, RELOCATION_SIZE):
+        relocation = bytes(obj[offset : offset + RELOCATION_SIZE])
+        virtual_address = struct.unpack_from("<I", relocation, 0)[0]
+        entry_index = virtual_address // PDATA_ENTRY_SIZE
+        if entry_index < entry_count:
+            by_entry.setdefault(entry_index, []).append(relocation)
+    return by_entry
+
+
+def format_sort_key(sort_key: tuple[int, int, int]) -> str:
+    return f"(sect={sort_key[0]}, value=0x{sort_key[1]:x}, sym={sort_key[2]})"
+
+
+def relocation_sort_info(
+    relocs: list[bytes],
+    symbols: list[CoffSymbol],
+    fallback: tuple[int, int, int],
+) -> tuple[tuple[int, int, int], str]:
+    begin_reloc = min(
+        (reloc for reloc in relocs if struct.unpack_from("<I", reloc, 0)[0] % PDATA_ENTRY_SIZE == 0),
+        key=lambda reloc: struct.unpack_from("<I", reloc, 0)[0],
+        default=None,
+    )
+    if begin_reloc is None:
+        return fallback, "raw-entry"
+
+    symbol_index = struct.unpack_from("<I", begin_reloc, 4)[0]
+    if symbol_index >= len(symbols):
+        return fallback, f"raw-entry-missing-symbol#{symbol_index}"
+
+    symbol = symbols[symbol_index]
+    symbol_name = symbol.name or "<aux-symbol>"
+    return (
+        (symbol.section_number, symbol.value, symbol_index),
+        f"symbol#{symbol_index}:{symbol_name}",
+    )
+
+
+def sort_pdata_section(obj: bytearray, section: Section, symbols: list[CoffSymbol]) -> bool:
     if section.raw_size == 0 or section.raw_size % PDATA_ENTRY_SIZE != 0:
         return False
 
@@ -144,17 +237,64 @@ def sort_pdata_section(obj: bytearray, section: Section) -> bool:
         bytes(obj[offset : offset + PDATA_ENTRY_SIZE])
         for offset in range(raw_start, raw_end, PDATA_ENTRY_SIZE)
     ]
-    keyed_entries = [
-        (struct.unpack_from("<III", entry, 0), index, entry)
-        for index, entry in enumerate(entries)
+    relocations_by_entry = pdata_relocations(section, obj, len(entries))
+    keyed_entries: list[PdataEntry] = []
+    for index, entry in enumerate(entries):
+        sort_key, key_source = relocation_sort_info(
+            relocations_by_entry.get(index, []),
+            symbols,
+            (*struct.unpack_from("<III", entry, 0),),
+        )
+        keyed_entries.append(PdataEntry(entry, index, sort_key, key_source))
+
+    symbol_keyed = sum(1 for entry in keyed_entries if entry.key_source.startswith("symbol#"))
+    print(
+        f"[sort_go_pdata] {section.name}: entries={len(entries)} "
+        f"relocations={section.relocation_count} symbol_keyed={symbol_keyed} "
+        f"raw_fallback={len(entries) - symbol_keyed}"
+    )
+
+    sorted_entries = sorted(keyed_entries, key=lambda entry: entry.sort_key)
+    if sorted_entries:
+        print(
+            f"[sort_go_pdata] {section.name}: before_first={format_sort_key(keyed_entries[0].sort_key)} "
+            f"before_last={format_sort_key(keyed_entries[-1].sort_key)} "
+            f"after_first={format_sort_key(sorted_entries[0].sort_key)} "
+            f"after_last={format_sort_key(sorted_entries[-1].sort_key)}"
+        )
+
+    if not all(
+        sorted_entries[index].sort_key <= sorted_entries[index + 1].sort_key
+        for index in range(len(sorted_entries) - 1)
+    ):
+        raise ValueError(f"{section.name} sort verification failed")
+
+    moved_entries = [
+        (entry.old_index, new_index, entry)
+        for new_index, entry in enumerate(sorted_entries)
+        if entry.old_index != new_index
     ]
-    sorted_entries = sorted(keyed_entries, key=lambda item: item[0])
-    if [item[1] for item in sorted_entries] == list(range(len(entries))):
+    print(
+        f"[sort_go_pdata] {section.name}: moved_entries={len(moved_entries)} "
+        f"order_changed={bool(moved_entries)}"
+    )
+    for old_index, new_index, entry in moved_entries[:LOG_SAMPLE_LIMIT]:
+        print(
+            f"[sort_go_pdata] {section.name}: move old={old_index} new={new_index} "
+            f"key={format_sort_key(entry.sort_key)} source={entry.key_source}"
+        )
+    if len(moved_entries) > LOG_SAMPLE_LIMIT:
+        print(
+            f"[sort_go_pdata] {section.name}: ... "
+            f"{len(moved_entries) - LOG_SAMPLE_LIMIT} additional moved entries omitted"
+        )
+
+    if [entry.old_index for entry in sorted_entries] == list(range(len(entries))):
         return False
 
-    for new_index, (_, _old_index, entry) in enumerate(sorted_entries):
+    for new_index, entry in enumerate(sorted_entries):
         start = raw_start + new_index * PDATA_ENTRY_SIZE
-        obj[start : start + PDATA_ENTRY_SIZE] = entry
+        obj[start : start + PDATA_ENTRY_SIZE] = entry.data
 
     relocation_start = section.relocation_offset
     relocation_end = relocation_start + section.relocation_count * RELOCATION_SIZE
@@ -173,8 +313,8 @@ def sort_pdata_section(obj: bytearray, section: Section) -> bool:
             trailing_relocations.append(relocation)
 
     sorted_relocations: list[bytes] = []
-    for new_index, (_, old_index, _entry) in enumerate(sorted_entries):
-        for relocation in relocations_by_entry.get(old_index, []):
+    for new_index, entry in enumerate(sorted_entries):
+        for relocation in relocations_by_entry.get(entry.old_index, []):
             old_virtual_address = struct.unpack_from("<I", relocation, 0)[0]
             field_offset = old_virtual_address % PDATA_ENTRY_SIZE
             patched = bytearray(relocation)
@@ -195,9 +335,10 @@ def sort_pdata_section(obj: bytearray, section: Section) -> bool:
 def patch_go_object(obj: bytes) -> tuple[bytes, int]:
     patched = bytearray(obj)
     changed = 0
-    for section in parse_sections(obj):
+    coff = parse_coff_object(obj)
+    for section in coff.sections:
         if section.name == ".pdata" or section.name.startswith(".pdata$"):
-            if sort_pdata_section(patched, section):
+            if sort_pdata_section(patched, section, coff.symbols):
                 changed += 1
     return bytes(patched), changed
 
