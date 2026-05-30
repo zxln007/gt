@@ -288,11 +288,17 @@ build_lib: $(SOURCES) Makefile prepare_msquic compile_webrtc
 	cp $(WEBRTC_LIB_FILE) release/$(RUST_TARGET_DIR)/
 	cp $(MSQUIC_LIB_FILE) release/$(RUST_TARGET_DIR)/
 	go build $(DEBUG_OPTIONS) -buildmode=c-archive -o release/$(RUST_TARGET_DIR)/$(GO_OUT_FILE_NAME) ./lib/export
+ifeq ($(GOOS),windows)
+	python scripts/sort_go_pdata.py release/$(RUST_TARGET_DIR)/$(GO_OUT_FILE_NAME)
+endif
 release_lib: $(SOURCES) Makefile prepare_msquic compile_webrtc release_web_client release_web_server
 	mkdir -p release/$(RUST_TARGET_DIR)
 	cp $(WEBRTC_LIB_FILE) release/$(RUST_TARGET_DIR)/
 	cp $(MSQUIC_LIB_FILE) release/$(RUST_TARGET_DIR)/
 	go build $(RELEASE_OPTIONS) -buildmode=c-archive -o release/$(RUST_TARGET_DIR)/$(GO_OUT_FILE_NAME) ./lib/export
+ifeq ($(GOOS),windows)
+	python scripts/sort_go_pdata.py release/$(RUST_TARGET_DIR)/$(GO_OUT_FILE_NAME)
+endif
 
 release_web_server: $(SOURCES_FRONT) Makefile check_npm front_release duplicate_dist_server
 release_web_client: $(SOURCES_FRONT) Makefile check_npm front_release duplicate_dist_client
