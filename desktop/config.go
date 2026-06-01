@@ -19,7 +19,7 @@ func NewConfigManager() *ConfigManager {
 		configDir = filepath.Join(homeDir, ".gt-desktop")
 	}
 
-	_ = os.MkdirAll(configDir, 0o755)
+	_ = os.MkdirAll(configDir, 0o700)
 
 	return &ConfigManager{
 		configDir:  configDir,
@@ -67,7 +67,7 @@ func (cm *ConfigManager) Save(cfg *DesktopConfig) error {
 		return err
 	}
 
-	return os.WriteFile(cm.configPath, data, 0o644)
+	return os.WriteFile(cm.configPath, data, 0o600)
 }
 
 func (cm *ConfigManager) SaveRuntimeConfig(cfg *RuntimeConfig) error {
@@ -75,7 +75,7 @@ func (cm *ConfigManager) SaveRuntimeConfig(cfg *RuntimeConfig) error {
 	if err != nil {
 		return err
 	}
-	return os.WriteFile(cm.GetRuntimeConfigPath(), data, 0o644)
+	return os.WriteFile(cm.GetRuntimeConfigPath(), data, 0o600)
 }
 
 func defaultDesktopConfig() DesktopConfig {

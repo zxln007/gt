@@ -92,6 +92,9 @@ Section
     SetOutPath $INSTDIR
     
     !insertmacro wails.files
+    !ifdef ARG_GT_BINARY
+        File "/oname=gt.exe" "${ARG_GT_BINARY}"
+    !endif
 
     CreateShortcut "$SMPROGRAMS\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"
     CreateShortCut "$DESKTOP\${INFO_PRODUCTNAME}.lnk" "$INSTDIR\${PRODUCT_EXECUTABLE}"

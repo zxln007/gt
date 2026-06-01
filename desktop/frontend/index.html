@@ -153,6 +153,25 @@
             <!-- SERVER TAB -->
             <section id="tab-server" class="tab-panel">
                 <h2 class="panel-title">中转节点配置</h2>
+
+                <div class="import-config-card">
+                    <div class="import-config-header">
+                        <div>
+                            <div class="import-config-title">一键导入客户端配置</div>
+                            <div class="import-config-desc">支持导入 GT client YAML，或粘贴 server 生成的 gt://import 配置链接。</div>
+                        </div>
+                        <div class="import-config-actions">
+                            <button type="button" class="btn btn-primary" id="btn-import-file">从文件导入</button>
+                            <button type="button" class="btn btn-secondary" id="btn-import-clipboard">从剪贴板导入</button>
+                        </div>
+                    </div>
+                    <textarea id="import-config-text" class="import-config-text" placeholder="也可以在这里粘贴 client.yaml 内容或 gt://import?profile=... 链接"></textarea>
+                    <div class="import-config-footer">
+                        <span class="import-config-hint">导入会覆盖当前服务器、鉴权和隧道配置。导入后如 tunnel 正在运行，需要重启穿透生效。</span>
+                        <button type="button" class="btn btn-secondary" id="btn-import-text">导入粘贴内容</button>
+                    </div>
+                    <input type="file" id="import-config-file" accept=".yaml,.yml,.txt" hidden>
+                </div>
                 
                 <form class="server-form" id="server-config-form">
                     <div class="form-row">

@@ -63,6 +63,11 @@ const dom = {
     srvBbr: document.getElementById('srv-bbr'),
     srvInsecure: document.getElementById('srv-insecure'),
     btnTestServer: document.getElementById('btn-test-server'),
+    btnImportFile: document.getElementById('btn-import-file'),
+    btnImportClipboard: document.getElementById('btn-import-clipboard'),
+    btnImportText: document.getElementById('btn-import-text'),
+    importConfigText: document.getElementById('import-config-text'),
+    importConfigFile: document.getElementById('import-config-file'),
 
     // Logs 元素
     logLevelFilter: document.getElementById('log-level-filter'),
@@ -81,6 +86,28 @@ function showToast(message, duration = 3000) {
     setTimeout(() => {
         dom.toast.classList.remove('show');
     }, duration);
+}
+
+function getGTApp() {
+    return window.go && window.go.main && window.go.main.GTApp ? window.go.main.GTApp : null;
+}
+
+function escapeHTML(value) {
+    return String(value ?? "")
+        .replaceAll("&", "&amp;")
+        .replaceAll("<", "&lt;")
+        .replaceAll(">", "&gt;")
+        .replaceAll('"', "&quot;")
+        .replaceAll("'", "&#39;");
+}
+
+function createButton(label, className, onClick) {
+    const button = document.createElement('button');
+    button.type = 'button';
+    button.className = className;
+    button.innerText = label;
+    button.addEventListener('click', onClick);
+    return button;
 }
 
 // ==========================================
@@ -116,10 +143,11 @@ function initTabs() {
 // 2. 状态轮询与仪表盘呈现 (Dashboard Telemetry)
 // ==========================================
 async function pollStatus() {
-    if (!window.go || !window.go.main || !window.go.main.GTApp) return;
+    const gtApp = getGTApp();
+    if (!gtApp) return;
 
     try {
-        const info = await window.go.main.GTApp.GetStatus();
+        const info = await gtApp.GetStatus();
         currentStatus = info;
         updateDashboardUI();
     } catch (err) {
@@ -180,20 +208,40 @@ function updateDashboardUI() {
             
             const isHTTP = remote.includes("http://") || remote.includes("https://") || local.includes(":80") || local.includes(":8080");
 
-            card.innerHTML = `
-                <div class="tunnel-meta">
-                    <div class="tunnel-mapping-row">
-                        <span class="tunnel-local">${local}</span>
-                        <span class="tunnel-mapping-arrow">⚡</span>
-                        <span class="tunnel-remote">${remote}</span>
-                    </div>
-                    <div class="tunnel-details">类型: ${isHTTP ? 'HTTP 网页映射' : 'TCP 端口代理'}</div>
-                </div>
-                <div class="tunnel-actions">
-                    <button class="btn btn-secondary btn-sm" onclick="copyToClipboard('${remote}')">复制链接</button>
-                    ${isHTTP ? `<button class="btn btn-primary btn-sm" onclick="openInBrowser('${remote}')">浏览器打开</button>` : ''}
-                </div>
-            `;
+            const meta = document.createElement('div');
+            meta.className = 'tunnel-meta';
+
+            const row = document.createElement('div');
+            row.className = 'tunnel-mapping-row';
+
+            const localSpan = document.createElement('span');
+            localSpan.className = 'tunnel-local';
+            localSpan.innerText = local;
+
+            const arrow = document.createElement('span');
+            arrow.className = 'tunnel-mapping-arrow';
+            arrow.innerText = '⚡';
+
+            const remoteSpan = document.createElement('span');
+            remoteSpan.className = 'tunnel-remote';
+            remoteSpan.innerText = remote;
+
+            row.append(localSpan, arrow, remoteSpan);
+
+            const details = document.createElement('div');
+            details.className = 'tunnel-details';
+            details.innerText = `类型: ${isHTTP ? 'HTTP 网页映射' : 'TCP 端口代理'}`;
+
+            meta.append(row, details);
+
+            const actions = document.createElement('div');
+            actions.className = 'tunnel-actions';
+            actions.appendChild(createButton('复制链接', 'btn btn-secondary btn-sm', () => copyToClipboard(remote)));
+            if (isHTTP) {
+                actions.appendChild(createButton('浏览器打开', 'btn btn-primary btn-sm', () => openInBrowser(remote)));
+            }
+
+            card.append(meta, actions);
             dom.activeTunnelList.appendChild(card);
         });
     } else {
@@ -212,15 +260,20 @@ window.copyToClipboard = function(text) {
 };
 
 window.openInBrowser = function(url) {
-    // 使用外部浏览器打开链接（在 Wails 中可用普通 window.open，或者使用后端 Wails 方法）
-    window.open(url, "_blank");
+    const gtApp = getGTApp();
+    if (gtApp && gtApp.OpenExternalURL) {
+        gtApp.OpenExternalURL(url).catch(err => showToast(`打开浏览器失败: ${err}`, 4000));
+        return;
+    }
+    window.open(url, "_blank", "noopener,noreferrer");
 };
 
 // ==========================================
 // 3. 开启/停止内网穿透
 // ==========================================
 async function toggleTunnel() {
-    if (!window.go || !window.go.main || !window.go.main.GTApp) {
+    const gtApp = getGTApp();
+    if (!gtApp) {
         showToast("Wails Go 底层未就绪");
         return;
     }
@@ -235,7 +288,7 @@ async function toggleTunnel() {
 
     try {
         if (isRunning) {
-            await window.go.main.GTApp.StopTunnel();
+            await gtApp.StopTunnel();
             showToast("内网穿透已成功关闭");
         } else {
             // 先加载配置，确保有配置项存在
@@ -245,7 +298,7 @@ async function toggleTunnel() {
                 updateDashboardUI();
                 return;
             }
-            await window.go.main.GTApp.StartTunnel();
+            await gtApp.StartTunnel();
             showToast("一键穿透开启成功！隧道已全部建立");
         }
         await pollStatus();
@@ -291,15 +344,15 @@ function renderTunnels() {
             <div class="tunnel-body">
                 <div class="detail-row">
                     <span class="detail-lbl">本地映射服务:</span>
-                    <span class="detail-val">${localURL}</span>
+                    <span class="detail-val">${escapeHTML(localURL)}</span>
                 </div>
                 <div class="detail-row">
                     <span class="detail-lbl">二级子域名:</span>
-                    <span class="detail-val">${prefix}</span>
+                    <span class="detail-val">${escapeHTML(prefix)}</span>
                 </div>
                 <div class="detail-row">
                     <span class="detail-lbl">外网 TCP 端口:</span>
-                    <span class="detail-val">${randomPort ? '随机分配' : remotePort}</span>
+                    <span class="detail-val">${escapeHTML(randomPort ? '随机分配' : remotePort)}</span>
                 </div>
                 <div class="detail-row">
                     <span class="detail-lbl">校验 Host 头:</span>
@@ -386,7 +439,9 @@ async function saveTunnel(e) {
     }
 
     try {
-        await window.go.main.GTApp.SaveConfig(currentConfig);
+        const gtApp = getGTApp();
+        if (!gtApp) throw new Error("Wails Go 底层未就绪");
+        await gtApp.SaveConfig(currentConfig);
         closeDrawer();
         renderTunnels();
         updateDashboardUI();
@@ -401,7 +456,9 @@ window.deleteTunnel = async function(index) {
     if (confirm(`确认要删除此条内网穿透规则吗？`)) {
         currentConfig.Services.splice(index, 1);
         try {
-            await window.go.main.GTApp.SaveConfig(currentConfig);
+            const gtApp = getGTApp();
+            if (!gtApp) throw new Error("Wails Go 底层未就绪");
+            await gtApp.SaveConfig(currentConfig);
             showToast("穿透规则已成功移除");
             renderTunnels();
             updateDashboardUI();
@@ -454,7 +511,9 @@ async function saveServerConfig(e) {
     currentConfig.RemoteCertInsecure = dom.srvInsecure.checked;
 
     try {
-        await window.go.main.GTApp.SaveConfig(currentConfig);
+        const gtApp = getGTApp();
+        if (!gtApp) throw new Error("Wails Go 底层未就绪");
+        await gtApp.SaveConfig(currentConfig);
         showToast("服务器节点配置已成功持久化保存！");
         if (currentStatus.isRunning) {
             showToast("配置已修改！请关闭并重新开启穿透以使新配置生效", 5000);
@@ -465,11 +524,77 @@ async function saveServerConfig(e) {
 }
 
 async function testServerConnection() {
-    // 仅本地进行握手诊断
-    showToast("正在建立 TCP/UDP 环回握手测试...", 2000);
-    setTimeout(() => {
-        showToast("连通成功！远程服务器就绪，双向握手延迟约 12ms", 4000);
-    }, 1500);
+    const gtApp = getGTApp();
+    if (!gtApp || !gtApp.TestServerConnection) {
+        showToast("Wails Go 底层未就绪");
+        return;
+    }
+
+    showToast("正在测试中转服务器 TCP 连通性...", 2000);
+    try {
+        const message = await gtApp.TestServerConnection();
+        showToast(message, 4000);
+    } catch (err) {
+        showToast(`连接测试失败: ${err}`, 5000);
+    }
+}
+
+async function importConfigPayload(payload) {
+    const gtApp = getGTApp();
+    if (!gtApp || !gtApp.ImportConfig) {
+        showToast("Wails Go 底层未就绪");
+        return;
+    }
+
+    if (!payload || !payload.trim()) {
+        showToast("导入内容为空");
+        return;
+    }
+
+    if (!confirm("导入会覆盖当前 GT 桌面客户端配置，确认继续吗？")) {
+        return;
+    }
+
+    try {
+        currentConfig = await gtApp.ImportConfig(payload);
+        renderTunnels();
+        renderServerConfig();
+        updateDashboardUI();
+        dom.importConfigText.value = "";
+        showToast(currentStatus.isRunning ? "配置已导入，请重启穿透使配置生效" : "配置导入成功", 5000);
+    } catch (err) {
+        showToast(`导入失败: ${err}`, 6000);
+    }
+}
+
+function importConfigFromFile(file) {
+    if (!file) return;
+
+    const reader = new FileReader();
+    reader.onload = () => {
+        importConfigPayload(String(reader.result || ""));
+        dom.importConfigFile.value = "";
+    };
+    reader.onerror = () => {
+        showToast("读取配置文件失败");
+        dom.importConfigFile.value = "";
+    };
+    reader.readAsText(file);
+}
+
+async function importConfigFromClipboard() {
+    if (!navigator.clipboard || !navigator.clipboard.readText) {
+        showToast("当前环境不支持读取剪贴板，请粘贴到文本框后导入");
+        return;
+    }
+
+    try {
+        const text = await navigator.clipboard.readText();
+        dom.importConfigText.value = text;
+        await importConfigPayload(text);
+    } catch (err) {
+        showToast(`读取剪贴板失败: ${err}`, 5000);
+    }
 }
 
 // ==========================================
@@ -479,46 +604,57 @@ function appendLogLine(line) {
     logsCached.push(line);
     if (logsCached.length > 1000) {
         logsCached.shift();
+        renderFilteredLogs();
+        return;
     }
-    
-    // 渲染过滤后的日志
-    renderFilteredLogs();
+
+    if (!shouldDisplayLogLine(line)) {
+        return;
+    }
+    appendLogElement(line);
+    if (!logsLockScroll) {
+        scrollToBottomLogs();
+    }
 }
 
 function renderFilteredLogs() {
     const filter = dom.logLevelFilter.value;
     dom.logTerminal.innerHTML = "";
 
-    const linesToDisplay = logsCached.filter(line => {
-        if (filter === "ALL") return true;
-        return line.includes(`[${filter}]`) || line.includes(`level=${filter.toLowerCase()}`);
-    });
-
-    linesToDisplay.forEach(line => {
-        const span = document.createElement('span');
-        let textClass = 'log-info';
-
-        if (line.includes('[WARN]') || line.includes('level=warn')) {
-            textClass = 'log-warn';
-        } else if (line.includes('[ERROR]') || line.includes('level=error') || line.includes('level=fatal') || line.includes('level=panic')) {
-            textClass = 'log-error';
-        }
-        
-        span.className = textClass;
-        span.innerText = line;
-        dom.logTerminal.appendChild(span);
-    });
+    logsCached.filter(shouldDisplayLogLine).forEach(appendLogElement);
 
     if (!logsLockScroll) {
         scrollToBottomLogs();
     }
 }
 
+function shouldDisplayLogLine(line) {
+    const filter = dom.logLevelFilter.value;
+    if (filter === "ALL") return true;
+    return line.includes(`[${filter}]`) || line.includes(`level=${filter.toLowerCase()}`);
+}
+
+function appendLogElement(line) {
+    const span = document.createElement('span');
+    let textClass = 'log-info';
+
+    if (line.includes('[WARN]') || line.includes('level=warn')) {
+        textClass = 'log-warn';
+    } else if (line.includes('[ERROR]') || line.includes('level=error') || line.includes('level=fatal') || line.includes('level=panic')) {
+        textClass = 'log-error';
+    }
+
+    span.className = textClass;
+    span.innerText = line;
+    dom.logTerminal.appendChild(span);
+}
+
 async function loadHistoryLogs() {
-    if (!window.go || !window.go.main || !window.go.main.GTApp) return;
+    const gtApp = getGTApp();
+    if (!gtApp) return;
 
     try {
-        const history = await window.go.main.GTApp.GetLogs();
+        const history = await gtApp.GetLogs();
         logsCached = history;
         renderFilteredLogs();
     } catch (err) {
@@ -538,9 +674,10 @@ async function initApp() {
     initTabs();
 
     // 2. 检查 Wails Go 对象就绪性并拉取初始配置
-    if (window.go && window.go.main && window.go.main.GTApp) {
+    const gtApp = getGTApp();
+    if (gtApp) {
         try {
-            currentConfig = await window.go.main.GTApp.LoadConfig();
+            currentConfig = await gtApp.LoadConfig();
             
             // 渲染数据
             renderTunnels();
@@ -585,6 +722,10 @@ document.addEventListener('DOMContentLoaded', () => {
     // 服务器配置表单事件
     dom.serverForm.addEventListener('submit', saveServerConfig);
     dom.btnTestServer.addEventListener('click', testServerConnection);
+    dom.btnImportFile.addEventListener('click', () => dom.importConfigFile.click());
+    dom.importConfigFile.addEventListener('change', () => importConfigFromFile(dom.importConfigFile.files[0]));
+    dom.btnImportClipboard.addEventListener('click', importConfigFromClipboard);
+    dom.btnImportText.addEventListener('click', () => importConfigPayload(dom.importConfigText.value));
     
     // 一键隐藏/显示密码
     dom.btnToggleSecret.addEventListener('click', () => {
@@ -603,8 +744,9 @@ document.addEventListener('DOMContentLoaded', () => {
     dom.btnClearLogs.addEventListener('click', () => {
         logsCached = [];
         dom.logTerminal.innerHTML = "";
-        if (window.go && window.go.main && window.go.main.GTApp) {
-            window.go.main.GTApp.ClearLogs();
+        const gtApp = getGTApp();
+        if (gtApp) {
+            gtApp.ClearLogs();
         }
     });
 

@@ -36,6 +36,16 @@ export function GetStatus() {
 }
 
 /**
+ * @param {string} payload
+ * @returns {$CancellablePromise<$models.DesktopConfig | null>}
+ */
+export function ImportConfig(payload) {
+    return $Call.ByID(23163861, payload).then(/** @type {($result: any) => any} */(($result) => {
+        return $$createType4($result);
+    }));
+}
+
+/**
  * @returns {$CancellablePromise<$models.DesktopConfig | null>}
  */
 export function LoadConfig() {
@@ -59,6 +69,14 @@ export function OnStartup() {
 }
 
 /**
+ * @param {string} rawURL
+ * @returns {$CancellablePromise<void>}
+ */
+export function OpenExternalURL(rawURL) {
+    return $Call.ByID(2503763466, rawURL);
+}
+
+/**
  * @param {$models.DesktopConfig | null} cfg
  * @returns {$CancellablePromise<void>}
  */
@@ -78,6 +96,13 @@ export function StartTunnel() {
  */
 export function StopTunnel() {
     return $Call.ByID(1462812540);
+}
+
+/**
+ * @returns {$CancellablePromise<string>}
+ */
+export function TestServerConnection() {
+    return $Call.ByID(3244852977);
 }
 
 // Private type creation functions
