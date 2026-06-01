@@ -29,6 +29,7 @@ options:
   httpMUXHeader: EID
   stunAddr: ${NETWORK_STUNADDR:-3478}
   reconnectTimes: ${NETWORK_RECONNECTTIMES:-3}
+  webAddr: ${NETWORK_WEB_ADDR:-0.0.0.0:8000}
 EOF
 
 exec /usr/bin/gt server -c /opt/aonetwork-server.yml
