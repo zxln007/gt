@@ -1,23 +1,29 @@
 <template>
-  <div class="login-container flx-center">
-    <div class="login-box">
-      <SwitchDark class="dark" />
-      <div class="login-left">
-        <img class="login-left-img" src="@/assets/images/login_left.png" alt="login" />
-      </div>
-      <div class="login-form">
-        <div class="login-logo">
-          <img style="width: auto" class="login-icon" src="@/assets/images/logo_m_en.png" alt="" />
+  <div class="login-container">
+    <div class="login-card">
+      <div class="status-bar" aria-hidden="true"></div>
+
+      <header class="card-head">
+        <div class="tunnel-mark" aria-hidden="true">
+          <span class="node"></span>
+          <span class="link"></span>
+          <span class="node"></span>
         </div>
-        <LoginForm />
+        <h1 class="brand">G-Tunnel</h1>
+        <p class="tagline">WS / HTTP / TCP Relay</p>
+      </header>
+
+      <div class="form-head">
+        <h2>Sign in</h2>
       </div>
+
+      <LoginForm />
     </div>
   </div>
 </template>
 
 <script setup lang="ts" name="login">
 import LoginForm from "./components/LoginForm.vue";
-import SwitchDark from "@/components/SwitchDark/index.vue";
 </script>
 
 <style scoped lang="scss">

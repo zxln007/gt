@@ -26,8 +26,7 @@
     </el-form-item>
   </el-form>
   <div class="login-btn">
-    <el-button :icon="CircleClose" round size="large" @click="resetForm(loginFormRef)">{{ $t("view_login.Reset") }}</el-button>
-    <el-button :icon="UserFilled" round size="large" type="primary" :loading="loading" @click="login(loginFormRef)">
+    <el-button size="large" type="primary" :loading="loading" @click="login(loginFormRef)">
       {{ $t("view_login.Login") }}
     </el-button>
   </div>
@@ -45,7 +44,6 @@ import { useUserStore } from "@/stores/modules/user";
 import { useTabsStore } from "@/stores/modules/tabs";
 import { useKeepAliveStore } from "@/stores/modules/keepAlive";
 import { initDynamicRouter } from "@/routers/modules/dynamicRouter";
-import { CircleClose, UserFilled } from "@element-plus/icons-vue";
 import type { ElForm } from "element-plus";
 
 const router = useRouter();
@@ -96,12 +94,6 @@ const login = (formEl: FormInstance | undefined) => {
       loading.value = false;
     }
   });
-};
-
-// resetForm
-const resetForm = (formEl: FormInstance | undefined) => {
-  if (!formEl) return;
-  formEl.resetFields();
 };
 
 onMounted(() => {
