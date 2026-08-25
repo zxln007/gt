@@ -1,0 +1,513 @@
+@import url('https://fonts.googleapis.com/css2?family=Fira+Code:wght@400;500&family=Inter:wght@400;500;600;700&display=swap');
+
+/* --- Design System --- */
+:root {
+    --bg-main: #0b0f19;
+    --bg-card: #111827;
+    --bg-input: #1f2937;
+    --border-color: #374151;
+
+    --text-primary: #f9fafb;
+    --text-secondary: #9ca3af;
+    --text-muted: #6b7280;
+
+    --color-primary: #3b82f6;
+    /* Classic clean blue */
+    --color-primary-hover: #60a5fa;
+    --color-success: #10b981;
+
+    --font-sans: 'Inter', -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+    --font-mono: 'Fira Code', Menlo, Monaco, Consolas, monospace;
+
+    --transition: all 0.2s ease-in-out;
+}
+
+/* --- Base --- */
+* {
+    margin: 0;
+    padding: 0;
+    box-sizing: border-box;
+}
+
+body {
+    background-color: var(--bg-main);
+    color: var(--text-primary);
+    font-family: var(--font-sans);
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+}
+
+.container {
+    max-width: 960px;
+    margin: 0 auto;
+    padding: 0 1.5rem;
+}
+
+/* --- Navigation --- */
+.navbar {
+    border-bottom: 1px solid var(--border-color);
+    background-color: var(--bg-main);
+    position: sticky;
+    top: 0;
+    z-index: 100;
+}
+
+.navbar-container {
+    height: 4rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.logo-group {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.logo-text {
+    font-weight: 700;
+    font-size: 1.25rem;
+    color: #fff;
+    letter-spacing: -0.02em;
+    cursor: pointer;
+    text-decoration: none;
+}
+
+.logo-text span {
+    color: var(--color-primary);
+}
+
+.badge {
+    padding: 0.15rem 0.4rem;
+    border-radius: 4px;
+    font-size: 0.7rem;
+    font-weight: 500;
+    background-color: rgba(59, 130, 246, 0.1);
+    color: var(--color-primary-hover);
+    border: 1px solid rgba(59, 130, 246, 0.2);
+}
+
+.navbar-links {
+    display: flex;
+    align-items: center;
+    gap: 1.5rem;
+}
+
+.nav-link {
+    color: var(--text-secondary);
+    text-decoration: none;
+    font-size: 0.85rem;
+    transition: var(--transition);
+}
+
+.nav-link:hover {
+    color: #fff;
+}
+
+/* --- Hero Section --- */
+.hero {
+    padding: 5rem 0 3.5rem 0;
+    text-align: center;
+}
+
+.hero-title {
+    font-size: 2.5rem;
+    font-weight: 800;
+    letter-spacing: -0.03em;
+    color: #fff;
+    margin-bottom: 1rem;
+    line-height: 1.2;
+}
+
+.hero-subtitle {
+    font-size: 1.05rem;
+    color: var(--text-secondary);
+    max-width: 36rem;
+    margin: 0 auto;
+    line-height: 1.6;
+}
+
+/* --- Features Grid --- */
+.features {
+    padding: 2rem 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.features-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+}
+
+.feature-card {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1.5rem;
+}
+
+.feature-card-title {
+    font-size: 0.95rem;
+    font-weight: 600;
+    color: #fff;
+    margin-bottom: 0.5rem;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.feature-card-title svg {
+    color: var(--color-primary);
+}
+
+.feature-card-desc {
+    font-size: 0.825rem;
+    color: var(--text-secondary);
+    line-height: 1.5;
+}
+
+/* --- Section Headers --- */
+.section-header {
+    text-align: center;
+    margin: 4.5rem 0 2.5rem 0;
+}
+
+.section-title {
+    font-size: 1.75rem;
+    font-weight: 700;
+    letter-spacing: -0.02em;
+    color: #fff;
+    margin-bottom: 0.5rem;
+}
+
+.section-subtitle {
+    font-size: 0.9rem;
+    color: var(--text-secondary);
+}
+
+/* --- Download Grid --- */
+.download-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(280px, 1fr));
+    gap: 1.5rem;
+}
+
+.download-card {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1.75rem;
+    display: flex;
+    flex-direction: column;
+}
+
+.os-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 1rem;
+}
+
+.os-icon {
+    color: var(--text-secondary);
+    display: inline-flex;
+    align-items: center;
+}
+
+.os-name {
+    font-size: 1.15rem;
+    font-weight: 600;
+    color: #fff;
+}
+
+.os-desc {
+    font-size: 0.8rem;
+    color: var(--text-secondary);
+    margin-bottom: 1.5rem;
+    height: 2.5rem;
+}
+
+.download-selector-wrapper {
+    margin-bottom: 1.25rem;
+}
+
+.download-selector {
+    width: 100%;
+    background-color: var(--bg-input);
+    border: 1px solid var(--border-color);
+    color: var(--text-primary);
+    padding: 0.6rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.825rem;
+    outline: none;
+    cursor: pointer;
+    font-family: var(--font-sans);
+    transition: var(--transition);
+}
+
+.download-selector:focus {
+    border-color: var(--color-primary);
+}
+
+.btn-download-trigger {
+    width: 100%;
+    padding: 0.65rem 1rem;
+    border-radius: 6px;
+    font-weight: 500;
+    font-size: 0.85rem;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.4rem;
+    cursor: pointer;
+    text-decoration: none;
+    transition: var(--transition);
+    background-color: var(--color-primary);
+    color: #fff;
+    border: 1px solid var(--color-primary);
+}
+
+.btn-download-trigger:hover {
+    background-color: #2563eb;
+    border-color: #2563eb;
+}
+
+.download-note {
+    font-size: 0.725rem;
+    color: var(--text-muted);
+    margin-top: 1rem;
+    font-family: var(--font-mono);
+    word-break: break-all;
+}
+
+/* --- Terminal Command Box --- */
+.terminal-box {
+    background-color: var(--bg-card);
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    padding: 1.75rem;
+    margin-bottom: 5rem;
+}
+
+.terminal-inputs-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1.25rem;
+    margin-bottom: 1.5rem;
+}
+
+.input-group {
+    display: flex;
+    flex-direction: column;
+    gap: 0.35rem;
+}
+
+.input-label {
+    font-size: 0.75rem;
+    font-weight: 500;
+    color: var(--text-secondary);
+}
+
+.terminal-input {
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    padding: 0.5rem 0.75rem;
+    color: #fff;
+    font-size: 0.825rem;
+    font-family: var(--font-mono);
+    outline: none;
+    transition: var(--transition);
+}
+
+.terminal-input:focus {
+    border-color: var(--color-primary);
+}
+
+.terminal-window {
+    background: #020408;
+    border: 1px solid var(--border-color);
+    border-radius: 6px;
+    overflow: hidden;
+}
+
+.terminal-header {
+    background: #111827;
+    border-bottom: 1px solid var(--border-color);
+    padding: 0.5rem 1rem;
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+}
+
+.terminal-dots {
+    display: flex;
+    gap: 0.35rem;
+}
+
+.terminal-dot {
+    width: 8px;
+    height: 8px;
+    border-radius: 50%;
+    background-color: #374151;
+}
+
+.terminal-title {
+    font-family: var(--font-mono);
+    font-size: 0.65rem;
+    color: var(--text-muted);
+}
+
+.terminal-body {
+    padding: 1.25rem;
+    position: relative;
+    display: flex;
+    align-items: center;
+    min-height: 4.5rem;
+}
+
+.terminal-code {
+    font-family: var(--font-mono);
+    font-size: 0.8rem;
+    line-height: 1.5;
+    color: #e5e7eb;
+    word-break: break-all;
+    padding-right: 6.5rem;
+}
+
+.btn-copy {
+    position: absolute;
+    right: 1.25rem;
+    top: 50%;
+    transform: translateY(-50%);
+    background: var(--bg-input);
+    border: 1px solid var(--border-color);
+    color: var(--text-secondary);
+    padding: 0.4rem 0.75rem;
+    border-radius: 4px;
+    font-size: 0.725rem;
+    font-weight: 500;
+    cursor: pointer;
+    display: flex;
+    align-items: center;
+    gap: 0.35rem;
+    transition: var(--transition);
+}
+
+.btn-copy:hover {
+    color: #fff;
+    background: #374151;
+}
+
+.btn-copy.copied {
+    color: #fff;
+    background-color: var(--color-success);
+    border-color: var(--color-success);
+}
+
+/* --- Benchmark Section --- */
+.benchmark {
+    padding: 2rem 0;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.benchmark-table-wrapper {
+    width: 100%;
+    overflow-x: auto;
+    border: 1px solid var(--border-color);
+    border-radius: 8px;
+    background-color: var(--bg-card);
+    margin-top: 1.5rem;
+}
+
+.benchmark-table {
+    width: 100%;
+    border-collapse: collapse;
+    text-align: left;
+    font-size: 0.85rem;
+}
+
+.benchmark-table th,
+.benchmark-table td {
+    padding: 0.85rem 1.25rem;
+    border-bottom: 1px solid var(--border-color);
+}
+
+.benchmark-table th {
+    background-color: rgba(255, 255, 255, 0.02);
+    font-weight: 600;
+    color: #fff;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+}
+
+.benchmark-table tr:last-child td {
+    border-bottom: none;
+}
+
+.benchmark-table td.gt-highlight {
+    color: #38bdf8;
+    font-weight: 600;
+}
+
+.benchmark-table td.frp-muted {
+    color: var(--text-secondary);
+}
+
+.benchmark-note {
+    font-size: 0.75rem;
+    color: var(--text-muted);
+    margin-top: 0.75rem;
+    line-height: 1.4;
+}
+
+/* --- Footer --- */
+.footer {
+    border-top: 1px solid var(--border-color);
+    padding: 3rem 0;
+    text-align: center;
+    color: var(--text-secondary);
+    font-size: 0.8rem;
+}
+
+.footer-logo {
+    font-weight: 700;
+    font-size: 1.1rem;
+    color: #fff;
+    margin-bottom: 0.75rem;
+}
+
+.footer-logo span {
+    color: var(--color-primary);
+}
+
+.footer-text {
+    margin-bottom: 0.35rem;
+    color: var(--text-muted);
+}
+
+/* --- Responsive --- */
+@media (max-width: 640px) {
+    .hero-title {
+        font-size: 2rem;
+    }
+
+    .terminal-body {
+        flex-direction: column;
+        align-items: stretch;
+    }
+
+    .terminal-code {
+        padding-right: 0;
+        margin-bottom: 1rem;
+    }
+
+    .btn-copy {
+        position: static;
+        transform: none;
+        justify-content: center;
+        width: 100%;
+    }
+}
