@@ -2,6 +2,16 @@
 
 This directory contains the static website homepage files and a `Dockerfile` for serving the G-Tunnel Portal.
 
+## Site Structure
+
+- `index.html` — English homepage (site root, default for overseas visitors)
+- `zh/index.html` — Chinese homepage
+- `assets/` — shared stylesheet, script and icons (zero external CDN dependencies)
+- `install.sh` — one-line installer served at `/install.sh`:
+  `curl -fsSL https://gtunnel.dev/install.sh | sh`
+  Downloads the matching binary from GitHub Releases (`ao-space/gt` by default; override with `GT_REPO` / `GT_VERSION` / `GT_BIN_DIR` env vars) and verifies sha256 when the release ships `checksums.txt`.
+- Download buttons link directly to GitHub Release assets; no local `/downloads/` volume needed.
+
 ## Quick Start (Docker)
 
 To build and run this portal inside a Docker container:
@@ -13,13 +23,9 @@ docker build -t g-tunnel-client-portal .
 ```
 
 ### 2. Run the Container
-To run the container and map it to a local port (e.g., `8080`), you can mount your local directory containing the compiled G-Tunnel client binaries (such as `.zip`, `.dmg`, `.tar.gz` files) directly into the Nginx serving root:
+To run the container and map it to a local port (e.g., `8080`):
 ```bash
-docker run -d \
-  -p 8080:80 \
-  -v /path/to/local/binaries:/usr/share/nginx/html/downloads \
-  --name g-tunnel-portal \
-  g-tunnel-client-portal
+docker run -d -p 8080:80 --name g-tunnel-portal g-tunnel-client-portal
 ```
 
 ### 3. Open in Browser
@@ -34,7 +40,7 @@ Since the website is built using modern **Vanilla HTML5 & CSS3** with zero compi
 
 To run it locally with a development server (e.g., using python's built-in server):
 ```bash
-# Python 3
+# Python 3, serve from the web/ directory so /assets/ and /zh/ resolve
 python -m http.server 8000
 ```
-Then visit `http://localhost:8000`.
+Then visit `http://localhost:8000` (English) or `http://localhost:8000/zh/` (Chinese).
