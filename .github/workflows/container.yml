@@ -2,10 +2,11 @@ name: container build and push
 
 on:
   push:
-    branches: [ "*" ]
+    # only the integration and stable branches; feature branches build via workflow_dispatch
+    branches: [ "dev", "master" ]
     tags: [ '*.*.*' ]
   pull_request:
-    branches: [ "*" ]
+    branches: [ "dev" ]
   workflow_dispatch:
     inputs:
       use_prebuilt_msquic:
