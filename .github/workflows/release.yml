@@ -226,6 +226,12 @@ jobs:
           GH_REPO: ${{ github.repository }}
         run: |-
           tag="${{ steps.vars.outputs.release_tag }}"
-          gh release view "$tag" >/dev/null 2>&1 || \
+          if gh release view "$tag" >/dev/null 2>&1; then
+            gh release upload "$tag" dist/gt-* dist/checksums.txt --clobber
+          elif echo "$tag" | grep -qE -- '-(rc|alpha|beta|pre)'; then
+            gh release create "$tag" --title "$tag" --notes "G-Tunnel release $tag" --prerelease
+            gh release upload "$tag" dist/gt-* dist/checksums.txt
+          else
             gh release create "$tag" --title "$tag" --notes "G-Tunnel release $tag" --latest
-          gh release upload "$tag" dist/gt-* dist/checksums.txt --clobber
+            gh release upload "$tag" dist/gt-* dist/checksums.txt
+          fi
