@@ -2,12 +2,12 @@
 # G-Tunnel one-line installer
 #   curl -fsSL https://gtunnel.dev/install.sh | sh
 # Environment overrides:
-#   GT_REPO    GitHub repo to download from  (default: ao-space/gt, the upstream)
+#   GT_REPO    GitHub repo to download from  (default: zxln007/gt, our fork)
 #   GT_VERSION pin a release tag            (default: latest)
 #   GT_BIN_DIR target directory             (default: /usr/local/bin if writable, else ~/.local/bin)
 set -eu
 
-REPO="${GT_REPO:-ao-space/gt}"
+REPO="${GT_REPO:-zxln007/gt}"
 VERSION="${GT_VERSION:-latest}"
 BIN_DIR="${GT_BIN_DIR:-}"
 

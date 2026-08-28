@@ -9,7 +9,7 @@ This directory contains the static website homepage files and a `Dockerfile` for
 - `assets/` — shared stylesheet, script and icons (zero external CDN dependencies)
 - `install.sh` — one-line installer served at `/install.sh`:
   `curl -fsSL https://gtunnel.dev/install.sh | sh`
-  Downloads the matching binary from GitHub Releases (`ao-space/gt` by default; override with `GT_REPO` / `GT_VERSION` / `GT_BIN_DIR` env vars) and verifies sha256 when the release ships `checksums.txt`.
+  Downloads the matching binary from GitHub Releases (`zxln007/gt` by default; override with `GT_REPO` / `GT_VERSION` / `GT_BIN_DIR` env vars) and verifies sha256 when the release ships `checksums.txt`.
 - Download buttons link directly to GitHub Release assets; no local `/downloads/` volume needed.
 
 ## Quick Start (Docker)

@@ -11,7 +11,7 @@
   }[LANG];
 
   /* Release 直链基址(可用 GT_REPO 指向自建源时同步修改) */
-  var DL_BASE = 'https://github.com/ao-space/gt/releases/latest/download/';
+  var DL_BASE = 'https://github.com/zxln007/gt/releases/latest/download/';
 
   /* ── 压测数据(来源:core/README_CN.md wrk 实测) ── */
   var SCENARIOS = {
