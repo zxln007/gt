@@ -56,13 +56,8 @@ jobs:
             binary_suffix: linux-riscv64
             gcc_pkg: gcc-riscv64-linux-gnu g++-riscv64-linux-gnu binutils-riscv64-linux-gnu
 
-          - target: x86_64-apple-darwin
-            os: macos-13
-            goos: darwin
-            goarch: amd64
-            rust_target: x86_64-apple-darwin
-            binary_suffix: macos-x86_64
-
+          # Intel macOS runners (macos-13) are retired on GitHub; mac x86_64
+          # users can run the aarch64 build under Rosetta 2
           - target: aarch64-apple-darwin
             os: macos-latest
             goos: darwin
