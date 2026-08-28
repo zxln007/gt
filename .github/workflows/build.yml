@@ -1,25 +1,36 @@
-name: release
+name: build
 
-# Mirrors the proven build flow from container.yml (build job) and publishes
-# the per-platform gt binaries as a GitHub release matching install.sh's
-# asset naming: gt-{linux,macos}-{x86_64,aarch64,riscv64}, gt-win-x86_64.exe.
+# Unified pipeline (merges the old container.yml + release.yml):
+#   push dev/master  -> build matrix + docker images (no release)
+#   PR -> dev        -> build matrix only
+#   push tag v*      -> build matrix + docker images + GitHub release
+#   workflow_dispatch-> build + docker; also publishes a release when release_tag is set
+#
+# Asset naming matches web/install.sh:
+#   gt-{linux,macos}-{x86_64,aarch64,riscv64} / gt-win-x86_64.exe + checksums.txt
 
 on:
+  push:
+    branches: [ "dev", "master" ]
+    tags: [ 'v*' ]
+  pull_request:
+    branches: [ "dev" ]
   workflow_dispatch:
     inputs:
       release_tag:
-        description: "Release tag to publish binaries to (created if missing)"
-        required: true
-        default: "v2.3.1"
+        description: "Also publish binaries to this release tag (created if missing); empty = build + docker only"
+        required: false
+        default: ""
         type: string
-  push:
-    tags:
-      - 'v*'
 
 permissions:
   contents: write
+  packages: write
+  id-token: write
 
 env:
+  REGISTRY: ghcr.io
+  IMAGE_NAME: ${{ github.repository }}
   WITH_OFFICIAL_WEBRTC: 1
   MSQUIC_RELEASE_TAG: msquic-prebuilt
   WEBRTC_RELEASE_TAG: webrtc-prebuilt
@@ -39,6 +50,7 @@ jobs:
             rust_target: x86_64-unknown-linux-gnu
             binary_suffix: linux-x86_64
             gcc_pkg: gcc-x86-64-linux-gnu g++-x86-64-linux-gnu binutils-x86-64-linux-gnu
+            build_desktop: false
 
           - target: aarch64-linux-gnu
             os: ubuntu-latest
@@ -47,6 +59,7 @@ jobs:
             rust_target: aarch64-unknown-linux-gnu
             binary_suffix: linux-aarch64
             gcc_pkg: gcc-aarch64-linux-gnu g++-aarch64-linux-gnu binutils-aarch64-linux-gnu
+            build_desktop: false
 
           - target: riscv64-linux-gnu
             os: ubuntu-latest
@@ -55,15 +68,17 @@ jobs:
             rust_target: riscv64gc-unknown-linux-gnu
             binary_suffix: linux-riscv64
             gcc_pkg: gcc-riscv64-linux-gnu g++-riscv64-linux-gnu binutils-riscv64-linux-gnu
+            build_desktop: false
 
-          # Intel macOS runners (macos-13) are retired on GitHub; mac x86_64
-          # users can run the aarch64 build under Rosetta 2
+          # Intel macOS runners (macos-13) are retired; Intel Mac users can run
+          # the aarch64 build under Rosetta 2
           - target: aarch64-apple-darwin
             os: macos-latest
             goos: darwin
             goarch: arm64
             rust_target: aarch64-apple-darwin
             binary_suffix: macos-aarch64
+            build_desktop: true
 
           - target: x86_64-pc-windows-msvc
             os: windows-2022
@@ -71,8 +86,17 @@ jobs:
             goarch: amd64
             rust_target: x86_64-pc-windows-msvc
             binary_suffix: win-x86_64
+            build_desktop: true
 
     steps:
+      - name: clean-space
+        if: runner.os == 'Linux'
+        run: |-
+          sudo swapoff -a
+          sudo rm -rf /swapfile /usr/share/dotnet /usr/local/lib/android /opt/ghc
+          sudo apt clean
+          sudo df -Th
+
       - uses: actions/checkout@v4
         with:
           submodules: recursive
@@ -101,7 +125,7 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y make git gn ninja-build python3 python3-pip libgtk-3-dev gcc rustc ${{ matrix.gcc_pkg }}
 
-      # ── prebuilt static libs (self-healing: fall back to source build) ──
+      # ── prebuilt static libs (self-healing: falls back to source build) ──
       - name: Resolve msquic prebuilt
         id: msquic
         env:
@@ -138,7 +162,8 @@ jobs:
             echo "mode=build" >> "$GITHUB_OUTPUT"
           fi
 
-      # cgo needs webrtc/abseil headers; the prebuilt archives ship only libs
+      # cgo compiles the webrtc bindings against headers from the webrtc
+      # checkout (plus abseil-cpp); the prebuilt archives ship only libs.
       - name: Sync WebRTC Dependencies
         shell: bash
         run: |-
@@ -186,23 +211,141 @@ jobs:
           mkdir -p release
           cp "target/${{ matrix.rust_target }}/release/gt.exe" "release/gt-${{ matrix.binary_suffix }}.exe"
 
+      # ── desktop app (windows / macos arm64) ──
+      - name: Set up Node.js
+        if: matrix.build_desktop == true
+        uses: actions/setup-node@v3
+        with:
+          node-version: '20'
+
+      - name: Install Wails v3 CLI
+        if: matrix.build_desktop == true
+        shell: bash
+        run: go install github.com/wailsapp/wails/v3/cmd/wails3@latest
+
+      - name: Compile & Package GT Desktop (Wails)
+        if: matrix.build_desktop == true
+        shell: bash
+        run: |-
+          mkdir -p desktop/bin
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            cp target/${{ matrix.rust_target }}/release/gt.exe desktop/bin/gt.exe
+          else
+            cp target/${{ matrix.rust_target }}/release/gt desktop/bin/gt
+          fi
+          echo "Frontend has no package.json, skipping build steps"
+          cd desktop
+          wails3 generate bindings
+          if [ "${{ matrix.goos }}" = "windows" ]; then
+            go build -tags production -trimpath -ldflags="-w -s -H windowsgui" -o bin/GT-Desktop.exe
+          else
+            go build -tags production -trimpath -ldflags="-w -s" -o bin/GT-Desktop
+          fi
+          cd ..
+
       - name: Upload artifact
         uses: actions/upload-artifact@v4
         with:
           name: gt-${{ matrix.binary_suffix }}
-          path: release/gt-${{ matrix.binary_suffix }}*
+          path: |
+            release/*
+            desktop/bin/*
 
-  publish:
+  docker:
+    name: docker build and push
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name != 'pull_request'
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Download all GT matrix artifacts
+        uses: actions/download-artifact@v4
+        with:
+          pattern: gt-linux-*
+          path: release
+          merge-multiple: true
+
+      - name: List merged release files
+        run: ls -la release/
+
+      - name: Set up QEMU
+        uses: docker/setup-qemu-action@v2
+
+      - name: Setup Docker buildx
+        id: buildx
+        uses: docker/setup-buildx-action@v2
+
+      - run: echo "GITHUB_REPOSITORY_NAME=${GITHUB_REPOSITORY#*/}" >> $GITHUB_ENV
+        shell: bash
+
+      - name: Log into registry ${{ env.REGISTRY }}
+        uses: docker/login-action@v2
+        with:
+          registry: ${{ env.REGISTRY }}
+          username: ${{ github.actor }}
+          password: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: Extract Docker metadata for Server
+        id: meta-server
+        uses: docker/metadata-action@v2
+        with:
+          images: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          flavor: |
+            prefix=server-
+
+      - name: Build and push Docker image for Server
+        uses: docker/build-push-action@v4.2.1
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta-server.outputs.tags }}
+          labels: ${{ steps.meta-server.outputs.labels }}
+          builder: ${{ steps.buildx.outputs.name }}
+          platforms: linux/amd64,linux/arm64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          file: Dockerfile-server
+          provenance: false
+
+      - name: Extract Docker metadata for Client
+        id: meta-client
+        uses: docker/metadata-action@v2
+        with:
+          images: |
+            ${{ env.REGISTRY }}/${{ env.IMAGE_NAME }}
+          flavor: |
+            prefix=client-
+
+      - name: Build and push Docker image for Client
+        uses: docker/build-push-action@v4.2.1
+        with:
+          context: .
+          push: true
+          tags: ${{ steps.meta-client.outputs.tags }}
+          labels: ${{ steps.meta-client.outputs.labels }}
+          builder: ${{ steps.buildx.outputs.name }}
+          platforms: linux/amd64,linux/arm64
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          file: Dockerfile-client
+          provenance: false
+
+  release:
     name: publish release
     runs-on: ubuntu-latest
     needs: build
+    if: >-
+      startsWith(github.ref, 'refs/tags/v') ||
+      (github.event_name == 'workflow_dispatch' && inputs.release_tag != '')
     steps:
       - name: Resolve release tag
         id: vars
         shell: bash
         run: |
           if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
-            echo "release_tag=${{ github.event.inputs.release_tag }}" >> "$GITHUB_OUTPUT"
+            echo "release_tag=${{ inputs.release_tag }}" >> "$GITHUB_OUTPUT"
           else
             echo "release_tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
           fi
