@@ -26,7 +26,7 @@ options:
   sentryDSN: ${NETWORK_SENTRYDSN}
   authAPI: ${NETWORK_AUTHAPI}
   timeout: ${NETWORK_TIMEOUT:-90s}
-  httpMUXHeader: EID
+  httpMUXHeader: ${NETWORK_HTTPMUXHEADER:-Host}
   stunAddr: ${NETWORK_STUNADDR:-3478}
   reconnectTimes: ${NETWORK_RECONNECTTIMES:-3}
   webAddr: ${NETWORK_WEB_ADDR:-0.0.0.0:8000}
