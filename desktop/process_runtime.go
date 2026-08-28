@@ -155,18 +155,31 @@ func (r *GTProcessRuntime) Status() (*StatusInfo, error) {
 	r.mu.Lock()
 	cfg := r.activeCfg
 	running := r.cmd != nil
+	baseURL := r.apiBaseURL
 	r.mu.Unlock()
 
 	if !running || cfg == nil {
 		return &StatusInfo{IsRunning: false}, nil
 	}
 
+	pingMs := 0
+	if baseURL != "" {
+		start := time.Now()
+		resp, err := r.httpClient.Get(baseURL + "/api/health")
+		if err == nil {
+			_ = resp.Body.Close()
+			if resp.StatusCode == http.StatusOK {
+				pingMs = int(time.Since(start).Milliseconds())
+			}
+		}
+	}
+
 	info := &StatusInfo{
 		IsRunning:  true,
 		ClientID:   cfg.ID,
-		PingMs:     12,
-		SpeedUp:    "85 KB/s",
-		SpeedDown:  "420 KB/s",
+		PingMs:     pingMs,
+		SpeedUp:    "--",
+		SpeedDown:  "--",
 		ActiveSvc:  buildActiveServices(cfg),
 		ServerAddr: firstRemote(cfg.Remote),
 	}
@@ -474,7 +487,7 @@ func detectRepoRoot(paths ...string) string {
 				continue
 			}
 			if _, err := os.Stat(filepath.Join(abs, "Cargo.toml")); err == nil {
-				if _, err := os.Stat(filepath.Join(abs, "bin", "Cargo.toml")); err == nil {
+				if _, err := os.Stat(filepath.Join(abs, "cli", "Cargo.toml")); err == nil {
 					return abs
 				}
 			}

@@ -1,0 +1,231 @@
+name: release
+
+# Mirrors the proven build flow from container.yml (build job) and publishes
+# the per-platform gt binaries as a GitHub release matching install.sh's
+# asset naming: gt-{linux,macos}-{x86_64,aarch64,riscv64}, gt-win-x86_64.exe.
+
+on:
+  workflow_dispatch:
+    inputs:
+      release_tag:
+        description: "Release tag to publish binaries to (created if missing)"
+        required: true
+        default: "v2.3.1"
+        type: string
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+env:
+  WITH_OFFICIAL_WEBRTC: 1
+  MSQUIC_RELEASE_TAG: msquic-prebuilt
+  WEBRTC_RELEASE_TAG: webrtc-prebuilt
+
+jobs:
+  build:
+    name: build ${{ matrix.binary_suffix }}
+    runs-on: ${{ matrix.os }}
+    strategy:
+      fail-fast: false
+      matrix:
+        include:
+          - target: x86_64-linux-gnu
+            os: ubuntu-latest
+            goos: linux
+            goarch: amd64
+            rust_target: x86_64-unknown-linux-gnu
+            binary_suffix: linux-x86_64
+            gcc_pkg: gcc-x86-64-linux-gnu g++-x86-64-linux-gnu binutils-x86-64-linux-gnu
+
+          - target: aarch64-linux-gnu
+            os: ubuntu-latest
+            goos: linux
+            goarch: arm64
+            rust_target: aarch64-unknown-linux-gnu
+            binary_suffix: linux-aarch64
+            gcc_pkg: gcc-aarch64-linux-gnu g++-aarch64-linux-gnu binutils-aarch64-linux-gnu
+
+          - target: riscv64-linux-gnu
+            os: ubuntu-latest
+            goos: linux
+            goarch: riscv64
+            rust_target: riscv64gc-unknown-linux-gnu
+            binary_suffix: linux-riscv64
+            gcc_pkg: gcc-riscv64-linux-gnu g++-riscv64-linux-gnu binutils-riscv64-linux-gnu
+
+          # Intel macOS runners (macos-13) are retired on GitHub; mac x86_64
+          # users can run the aarch64 build under Rosetta 2
+          - target: aarch64-apple-darwin
+            os: macos-latest
+            goos: darwin
+            goarch: arm64
+            rust_target: aarch64-apple-darwin
+            binary_suffix: macos-aarch64
+
+          - target: x86_64-pc-windows-msvc
+            os: windows-2022
+            goos: windows
+            goarch: amd64
+            rust_target: x86_64-pc-windows-msvc
+            binary_suffix: win-x86_64
+
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.25.10'
+          cache: false
+
+      - name: Set up Rust toolchain
+        run: rustup target add ${{ matrix.rust_target }}
+
+      - name: Set up MSVC Developer Command Prompt
+        if: runner.os == 'Windows'
+        uses: ilammy/msvc-dev-cmd@v1
+
+      - name: Fix GNU link clash on Windows
+        if: runner.os == 'Windows'
+        shell: bash
+        run: rm -f /usr/bin/link.exe
+
+      - name: Install system build dependencies (Linux)
+        if: runner.os == 'Linux'
+        run: |-
+          sudo apt-get update
+          sudo apt-get install -y make git gn ninja-build python3 python3-pip libgtk-3-dev gcc rustc ${{ matrix.gcc_pkg }}
+
+      # ── prebuilt static libs (self-healing: fall back to source build) ──
+      - name: Resolve msquic prebuilt
+        id: msquic
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |-
+          mkdir -p /tmp/msquic-download
+          rm -rf core/prebuilt/msquic/${{ matrix.target }}
+          if gh release download "$MSQUIC_RELEASE_TAG" --pattern "msquic-${{ matrix.target }}.tar.gz" --dir /tmp/msquic-download --clobber; then
+            mkdir -p "core/prebuilt/msquic/${{ matrix.target }}"
+            tar -xzf "/tmp/msquic-download/msquic-${{ matrix.target }}.tar.gz" -C "core/prebuilt/msquic/${{ matrix.target }}"
+            echo "mode=prebuilt" >> "$GITHUB_OUTPUT"
+          else
+            echo "Prebuilt msquic not found; falling back to source build."
+            echo "mode=build" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Resolve webrtc prebuilt
+        id: webrtc
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        shell: bash
+        run: |-
+          mkdir -p /tmp/webrtc-download
+          rm -rf core/prebuilt/webrtc/${{ matrix.target }}
+          if gh release download "$WEBRTC_RELEASE_TAG" --pattern "webrtc-${{ matrix.target }}.tar.gz" --dir /tmp/webrtc-download --clobber; then
+            mkdir -p "core/prebuilt/webrtc/${{ matrix.target }}"
+            tar -xzf "/tmp/webrtc-download/webrtc-${{ matrix.target }}.tar.gz" -C "core/prebuilt/webrtc/${{ matrix.target }}"
+            echo "mode=prebuilt" >> "$GITHUB_OUTPUT"
+          else
+            echo "Prebuilt webrtc not found; falling back to source build."
+            echo "mode=build" >> "$GITHUB_OUTPUT"
+          fi
+
+      # cgo needs webrtc/abseil headers; the prebuilt archives ship only libs
+      - name: Sync WebRTC Dependencies
+        shell: bash
+        run: |-
+          git clone --depth=1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
+          export PATH=$PWD/depot_tools:$PATH
+          echo "$PWD/depot_tools" >> $GITHUB_PATH
+          cd core/dep/_google-webrtc
+          gclient config --spec 'solutions = [ { "name": "src", "url": "https://webrtc.googlesource.com/src.git", "managed": False, "custom_deps": {}, }, ]'
+          gclient sync --nohooks --no-history --shallow
+          mkdir -p src/build/util
+          echo "$(date +%s)" > src/build/util/LASTCHANGE.committime
+          echo "LASTCHANGE=d0c0fbd3" > src/build/util/LASTCHANGE
+
+      - name: Compile GT single target (Unix)
+        if: runner.os != 'Windows'
+        shell: bash
+        run: |-
+          make release_target \
+            TARGET=${{ matrix.target }} \
+            GOOS=${{ matrix.goos }} \
+            GOARCH=${{ matrix.goarch }} \
+            RUST_TARGET=${{ matrix.rust_target }} \
+            BINARY_SUFFIX=${{ matrix.binary_suffix }} \
+            MSQUIC_MODE=${{ steps.msquic.outputs.mode }} \
+            WEBRTC_MODE=${{ steps.webrtc.outputs.mode }}
+
+      - name: Build GT core library (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |-
+          cd ./core && \
+          TARGET=${{ matrix.target }} \
+          GOOS=${{ matrix.goos }} \
+          GOARCH=${{ matrix.goarch }} \
+          RUST_TARGET=${{ matrix.rust_target }} \
+          MSQUIC_MODE=prebuilt \
+          WEBRTC_MODE=prebuilt \
+          make release_lib
+
+      - name: Compile GT single target (Windows)
+        if: runner.os == 'Windows'
+        shell: bash
+        run: |-
+          cargo build --target ${{ matrix.rust_target }} -r
+          mkdir -p release
+          cp "target/${{ matrix.rust_target }}/release/gt.exe" "release/gt-${{ matrix.binary_suffix }}.exe"
+
+      - name: Upload artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: gt-${{ matrix.binary_suffix }}
+          path: release/gt-${{ matrix.binary_suffix }}*
+
+  publish:
+    name: publish release
+    runs-on: ubuntu-latest
+    needs: build
+    steps:
+      - name: Resolve release tag
+        id: vars
+        shell: bash
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            echo "release_tag=${{ github.event.inputs.release_tag }}" >> "$GITHUB_OUTPUT"
+          else
+            echo "release_tag=${{ github.ref_name }}" >> "$GITHUB_OUTPUT"
+          fi
+
+      - name: Download all binaries
+        uses: actions/download-artifact@v4
+        with:
+          path: dist
+          pattern: gt-*
+          merge-multiple: true
+
+      - name: Generate checksums
+        run: |
+          cd dist
+          sha256sum gt-* > checksums.txt
+          cat checksums.txt
+
+      - name: Ensure release and upload
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |-
+          tag="${{ steps.vars.outputs.release_tag }}"
+          gh release view "$tag" >/dev/null 2>&1 || \
+            gh release create "$tag" --title "$tag" --notes "G-Tunnel release $tag" --latest
+          gh release upload "$tag" dist/gt-* dist/checksums.txt --clobber

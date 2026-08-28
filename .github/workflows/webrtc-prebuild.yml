@@ -72,7 +72,7 @@ jobs:
           git clone --depth=1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
           export PATH=$PWD/depot_tools:$PATH
           echo "$PWD/depot_tools" >> $GITHUB_PATH
-          cd libcs/dep/_google-webrtc
+          cd core/dep/_google-webrtc
           gclient config --spec 'solutions = [ { "name": "src", "url": "https://webrtc.googlesource.com/src.git", "managed": False, "custom_deps": {}, }, ]'
           gclient sync --nohooks --no-history --shallow
           mkdir -p src/build/util
@@ -89,14 +89,14 @@ jobs:
 
       - name: Build WebRTC
         run: |-
-          cd libcs
+          cd core
           make build_webrtc TARGET=${{ matrix.target }} WEBRTC_MODE=build
 
       - name: Package WebRTC artifact
         run: |-
           artifact_root="$RUNNER_TEMP/webrtc-${{ matrix.target }}"
           mkdir -p "$artifact_root/lib"
-          cp "libcs/dep/_google-webrtc/src/out/release-${{ matrix.target }}/obj/libwebrtc.a" "$artifact_root/lib/"
+          cp "core/dep/_google-webrtc/src/out/release-${{ matrix.target }}/obj/libwebrtc.a" "$artifact_root/lib/"
           cat > "$artifact_root/metadata.json" <<EOF
           {
             "name": "webrtc",
@@ -105,7 +105,7 @@ jobs:
             "os": "linux",
             "arch": "${{ matrix.arch }}",
             "library_type": "static",
-            "webrtc_commit": "$(git -C libcs/dep/_google-webrtc/src rev-parse HEAD)",
+            "webrtc_commit": "$(git -C core/dep/_google-webrtc/src rev-parse HEAD)",
             "built_by": "github-actions"
           }
           EOF
@@ -148,7 +148,7 @@ jobs:
           git clone --depth=1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
           export PATH=$PWD/depot_tools:$PATH
           echo "$PWD/depot_tools" >> $GITHUB_PATH
-          cd libcs/dep/_google-webrtc
+          cd core/dep/_google-webrtc
           gclient config --spec 'solutions = [ { "name": "src", "url": "https://webrtc.googlesource.com/src.git", "managed": False, "custom_deps": {}, }, ]'
           gclient sync --nohooks --no-history --shallow
           mkdir -p src/build/util
@@ -157,14 +157,14 @@ jobs:
 
       - name: Build WebRTC
         run: |-
-          cd libcs
+          cd core
           make build_webrtc TARGET=${{ matrix.target }} WEBRTC_MODE=build
 
       - name: Package WebRTC artifact
         run: |-
           artifact_root="$RUNNER_TEMP/webrtc-${{ matrix.target }}"
           mkdir -p "$artifact_root/lib"
-          cp "libcs/dep/_google-webrtc/src/out/release-${{ matrix.target }}/obj/libwebrtc.a" "$artifact_root/lib/"
+          cp "core/dep/_google-webrtc/src/out/release-${{ matrix.target }}/obj/libwebrtc.a" "$artifact_root/lib/"
           cat > "$artifact_root/metadata.json" <<EOF
           {
             "name": "webrtc",
@@ -173,7 +173,7 @@ jobs:
             "os": "macos",
             "arch": "${{ matrix.arch }}",
             "library_type": "static",
-            "webrtc_commit": "$(git -C libcs/dep/_google-webrtc/src rev-parse HEAD)",
+            "webrtc_commit": "$(git -C core/dep/_google-webrtc/src rev-parse HEAD)",
             "built_by": "github-actions"
           }
           EOF
@@ -203,7 +203,7 @@ jobs:
         include:
           - target: x86_64-pc-windows-msvc
             arch: amd64
-            output_lib: libcs/dep/_google-webrtc/src/out/release/obj/webrtc.lib
+            output_lib: core/dep/_google-webrtc/src/out/release/obj/webrtc.lib
             artifact_lib_name: webrtc.lib
 
     steps:
@@ -220,7 +220,7 @@ jobs:
           git clone --depth=1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
           $env:PATH = "$(pwd)\depot_tools;" + $env:PATH
           echo "$(pwd)\depot_tools" | Out-File -FilePath $env:GITHUB_PATH -Encoding utf8 -Append
-          cd libcs/dep/_google-webrtc
+          cd core/dep/_google-webrtc
           'solutions = [ { "name": "src", "url": "https://webrtc.googlesource.com/src.git", "managed": False, "custom_deps": {}, }, ]' | Set-Content -Path .gclient
           gclient sync --nohooks --no-history --shallow
           New-Item -ItemType Directory -Force -Path 'src/build/util'
@@ -238,8 +238,8 @@ jobs:
       - name: Build WebRTC
         shell: pwsh
         run: |-
-          python libcs/dep/_google-webrtc/src/tools/clang/scripts/update.py
-          Set-Location libcs/dep/_google-webrtc/src
+          python core/dep/_google-webrtc/src/tools/clang/scripts/update.py
+          Set-Location core/dep/_google-webrtc/src
           $env:DEPOT_TOOLS_WIN_TOOLCHAIN="0"
           $env:GYP_GENERATORS="msvs-ninja,ninja"
           $env:GYP_MSVS_OVERRIDE_PATH=$env:VCINSTALLDIR
@@ -269,7 +269,7 @@ jobs:
             os = 'windows'
             arch = '${{ matrix.arch }}'
             library_type = 'static'
-            webrtc_commit = (git -C libcs/dep/_google-webrtc/src rev-parse HEAD)
+            webrtc_commit = (git -C core/dep/_google-webrtc/src rev-parse HEAD)
             built_by = 'github-actions'
           } | ConvertTo-Json
           Set-Content -Path (Join-Path $artifactRoot 'metadata.json') -Value $metadata -Encoding utf8

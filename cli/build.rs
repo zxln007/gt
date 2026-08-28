@@ -1,0 +1,84 @@
+/*
+ * Copyright (c) 2022 Institute of Software, Chinese Academy of Sciences (ISCAS)
+ *
+ * Licensed under the Apache License, Version 2.0 (the "License");
+ * you may not use this file except in compliance with the License.
+ * You may obtain a copy of the License at
+ *
+ *     https://www.apache.org/licenses/LICENSE-2.0
+ *
+ * Unless required by applicable law or agreed to in writing, software
+ * distributed under the License is distributed on an "AS IS" BASIS,
+ * WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+ * See the License for the specific language governing permissions and
+ * limitations under the License.
+ */
+
+use std::env;
+use std::path::PathBuf;
+use std::process::Command;
+
+fn emit_windows_bin_link_args() {
+    let manifest_dir = PathBuf::from(env::var("CARGO_MANIFEST_DIR").unwrap());
+    let repo_root = manifest_dir
+        .parent()
+        .expect("cli crate should live under repo root");
+    let windows_lib_dir = repo_root.join("core").join("release").join("windows");
+
+    for lib in ["gt.lib", "webrtc.lib", "msquic.lib"] {
+        let lib_path = windows_lib_dir.join(lib);
+        println!(
+            "cargo:rustc-link-arg-bin=gt={}",
+            lib_path.to_string_lossy()
+        );
+    }
+}
+
+fn main() {
+    let target = env::var("TARGET").unwrap();
+    let os = env::var("CARGO_CFG_TARGET_OS").unwrap();
+    match os.as_str() {
+        "linux" => {
+            println!("cargo:rerun-if-changed=core/release/{target}");
+            println!("cargo:rustc-link-search=core/release/{target}");
+            println!("cargo:rustc-link-lib=static=cs");
+            println!("cargo:rustc-link-lib=static=webrtc");
+            println!("cargo:rustc-link-lib=static=msquic");
+            let output = Command::new(format!(
+                "{}-linux-gnu-gcc",
+                env::var("CARGO_CFG_TARGET_ARCH").unwrap()
+            ))
+                .arg("--print-file-name")
+                .arg("libstdc++.a")
+                .output()
+                .unwrap();
+            let mut path = PathBuf::from(String::from_utf8_lossy(&output.stdout).into_owned());
+            path.pop();
+            println!("cargo:rustc-link-search=native={}", path.to_str().unwrap());
+            println!("cargo:rustc-link-lib=static=stdc++");
+        }
+        "macos" => {
+            println!("cargo:rerun-if-changed=core/release/{target}");
+            println!("cargo:rustc-link-search=core/release/{target}");
+            println!("cargo:rustc-link-lib=static=cs");
+            println!("cargo:rustc-link-lib=static=webrtc");
+            println!("cargo:rustc-link-lib=static=msquic");
+            println!("cargo:rustc-link-lib=dylib=resolv");
+            println!("cargo:rustc-link-lib=dylib=c++");
+            println!("cargo:rustc-link-lib=dylib=c++abi");
+            println!("cargo:rustc-link-lib=framework=Security");
+            println!("cargo:rustc-link-lib=framework=Cocoa");
+            println!("cargo:rustc-link-lib=framework=IOKit");
+            println!("cargo:rustc-link-lib=framework=CoreMedia");
+            println!("cargo:rustc-link-lib=framework=AVFoundation");
+        }
+        "windows" => {
+            println!("cargo:rerun-if-changed=core/release/windows");
+            println!("cargo:rustc-link-search=core/release/windows");
+            emit_windows_bin_link_args();
+        }
+        os => {
+            panic!("Unsupported OS: {}", os)
+        }
+    }
+}

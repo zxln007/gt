@@ -51,9 +51,13 @@ web/front/*.sln
 web/front/*.sw?
 
 # dist
-server/web/dist
+core/client/web/dist
+core/server/web/dist
 client/web/dist
-
+admin/dist
+admin/node_modules
+core/prebuilt
+core/release
 /libcs/msvc-build/target
 .claude/
 desktop/.tmp-*
@@ -64,3 +68,6 @@ desktop/bin/
 desktop/*.exe
 desktop/frontend/node_modules/
 desktop/frontend/dist/
+AGENTS.md
+CLAUDE.md
+cli/*.exe

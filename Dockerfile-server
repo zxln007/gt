@@ -12,7 +12,7 @@
 # See the License for the specific language governing permissions and
 # limitations under the License.
 
-FROM debian:experimental
+FROM ubuntu:24.04
 
 ARG CI_COMMIT_SHA
 ARG CI_PIPELINE_ID
@@ -23,7 +23,7 @@ ENV TZ=Asia/Shanghai
 RUN apt update && DEBIAN_FRONTEND=noninteractive TZ=Asia/Shanghai apt-get -y install tzdata ca-certificates && rm -rf /var/lib/apt/lists/*
 
 COPY release/* /
-RUN cp /gt-linux-`arch` /usr/bin/gt && rm -f /*-gt
+RUN cp /gt-linux-`arch` /usr/bin/gt && chmod +x /usr/bin/gt && rm -f /*-gt
 COPY entrypoint-server.sh /opt/entrypoint.sh
 RUN chmod +x /opt/entrypoint.sh
 
