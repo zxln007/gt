@@ -130,7 +130,17 @@ function showToast(message, duration = 3000) {
 }
 
 function getGTApp() {
-    return window.go && window.go.main && window.go.main.GTApp ? window.go.main.GTApp : null;
+    // Wails v3 alpha 只暴露 window.wails.Call.ByName("<pkg>.<Service>.<Method>")，
+    // 这里用 Proxy 动态转发，保持 gtApp.Method(...) 的调用风格
+    if (window.__gtAppProxy) return window.__gtAppProxy;
+    if (!(window.wails && window.wails.Call && window.wails.Call.ByName)) return null;
+    window.__gtAppProxy = new Proxy({}, {
+        get: (_, prop) => {
+            if (typeof prop !== 'string') return undefined;
+            return (...args) => window.wails.Call.ByName(`main.GTApp.${prop}`, ...args);
+        }
+    });
+    return window.__gtAppProxy;
 }
 
 function escapeHTML(value) {
