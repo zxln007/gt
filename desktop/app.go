@@ -122,6 +122,13 @@ func (a *GTApp) StartTunnel() error {
 	if err != nil {
 		return err
 	}
+	// fail fast with a clear message instead of letting the worker die on an empty id
+	if !credentialConfigured(cfg) {
+		return errors.New("凭证未配置：请登录账号后在「连接」页一键签发，或使用概览页的「快速开始」")
+	}
+	if !remoteConfigured(cfg) {
+		return errors.New("中转节点未配置：请在「连接」页选择节点，或使用概览页的「快速开始」")
+	}
 
 	a.logWriter.Clear()
 	return a.runtime.Start(cfg)

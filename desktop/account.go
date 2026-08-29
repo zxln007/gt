@@ -377,13 +377,13 @@ func (a *GTApp) QuickStart(localPort uint16, prefix string) (*QuickStartResult, 
 		return nil, errNotLoggedIn
 	}
 
-	// 1. credential: issue one only when the config has none
+	// 1. credential: issue one only when the config has none (or just placeholders)
 	cfg, err := a.configManager.Load()
 	if err != nil {
 		return nil, err
 	}
 	issued := false
-	if strings.TrimSpace(cfg.ID) == "" || strings.TrimSpace(cfg.Secret) == "" {
+	if !credentialConfigured(cfg) {
 		var cred issuedCredential
 		if err := apiCallAuthed("POST", "/api/console/credentials", nil, &cred); err != nil {
 			return nil, fmt.Errorf("签发凭证失败: %w", err)
@@ -393,9 +393,9 @@ func (a *GTApp) QuickStart(localPort uint16, prefix string) (*QuickStartResult, 
 		issued = true
 	}
 
-	// 2. node: keep the configured remote, otherwise pick the first online node
+	// 2. node: keep a real configured remote, otherwise pick the first online node
 	nodeAddr := ""
-	if len(cfg.Remote) > 0 && strings.TrimSpace(cfg.Remote[0]) != "" {
+	if remoteConfigured(cfg) {
 		nodeAddr = strings.TrimPrefix(strings.TrimPrefix(cfg.Remote[0], "tcp://"), "tls://")
 	} else {
 		nodeAddr, err = pickOnlineNode()
@@ -409,7 +409,8 @@ func (a *GTApp) QuickStart(localPort uint16, prefix string) (*QuickStartResult, 
 		cfg.Remote = []string{scheme + "://" + nodeAddr}
 	}
 
-	// 3. prefix: use the given one, else generate; claim if not owned yet
+	// 3. prefix: explicit one must be used as-is; otherwise reuse an owned
+	// prefix first, and only generate+claim when the user owns none (quota!)
 	prefix = userPrefix
 	if prefix == "" {
 		prefix = randomPrefix()
@@ -426,6 +427,11 @@ func (a *GTApp) QuickStart(localPort uint16, prefix string) (*QuickStartResult, 
 				owned = true
 				break
 			}
+		}
+		// auto mode: prefer an existing prefix over claiming a new one
+		if !owned && userPrefix == "" && len(ownedList.HostPrefixes) > 0 {
+			prefix = ownedList.HostPrefixes[0].Prefix
+			owned = true
 		}
 	}
 	for attempt := 0; !owned; attempt++ {

@@ -5,6 +5,7 @@ import (
 	"path/filepath"
 
 	"gopkg.in/yaml.v3"
+	"strings"
 )
 
 type ConfigManager struct {
@@ -70,8 +71,38 @@ func (cm *ConfigManager) Save(cfg *DesktopConfig) error {
 	return os.WriteFile(cm.configPath, data, 0o600)
 }
 
+// gt 客户端（v2.3+）要求的配置格式是 version/services/options 包裹结构，
+// 顶层扁平的 id/secret 会被静默丢弃（表现为 "agent id ” is invalid"）。
+// 本地 config.yaml 仍保留扁平格式便于桌面端读写，仅运行时输出转换为原生格式。
+type gtRuntimeOptions struct {
+	DesktopConfig `yaml:",inline"`
+	WebAddr       string `yaml:"webAddr,omitempty"`
+	SigningKey    string `yaml:"signingKey,omitempty"`
+	Admin         string `yaml:"admin,omitempty"`
+	Password      string `yaml:"password,omitempty"`
+}
+
+type gtRuntimeConfig struct {
+	Version  string           `yaml:"version"`
+	Services []DesktopService `yaml:"services,omitempty"`
+	Options  gtRuntimeOptions `yaml:"options"`
+}
+
 func (cm *ConfigManager) SaveRuntimeConfig(cfg *RuntimeConfig) error {
-	data, err := yaml.Marshal(cfg)
+	opts := gtRuntimeOptions{
+		DesktopConfig: cfg.DesktopConfig,
+		WebAddr:       cfg.WebAddr,
+		SigningKey:    cfg.SigningKey,
+		Admin:         cfg.Admin,
+		Password:      cfg.Password,
+	}
+	opts.ConfigType = "" // type 不属于 options 节
+	native := gtRuntimeConfig{
+		Version:  "1.0",
+		Services: cfg.Services,
+		Options:  opts,
+	}
+	data, err := yaml.Marshal(&native)
 	if err != nil {
 		return err
 	}
@@ -122,4 +153,19 @@ func applyDesktopDefaults(cfg *DesktopConfig) {
 	if cfg.WebRTCLogLevel == "" {
 		cfg.WebRTCLogLevel = "warning"
 	}
+}
+
+// placeholder defaults from defaultDesktopConfig() must count as UNCONFIGURED,
+// otherwise QuickStart skips issuing credentials and the worker starts with a
+// literal "your-custom-id".
+func isPlaceholder(v string) bool {
+	return v == "" || strings.Contains(v, "your-custom-") || strings.Contains(v, "your-server-ip")
+}
+
+func credentialConfigured(cfg *DesktopConfig) bool {
+	return !isPlaceholder(cfg.ID) && !isPlaceholder(cfg.Secret)
+}
+
+func remoteConfigured(cfg *DesktopConfig) bool {
+	return len(cfg.Remote) > 0 && !isPlaceholder(cfg.Remote[0])
 }
