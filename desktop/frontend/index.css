@@ -310,6 +310,54 @@ input::placeholder, textarea::placeholder { color: var(--dim-2); }
 
 .toast.show { opacity: 1; transform: translateX(-50%) translateY(0); }
 
+/* ───────────────────────── QuickStart（B2） ───────────────────────── */
+
+.quickstart-card { margin-bottom: 16px; }
+
+.quickstart-head {
+    display: flex;
+    align-items: baseline;
+    gap: 12px;
+    flex-wrap: wrap;
+}
+
+.quickstart-head h3 { font-size: 15px; font-weight: 600; }
+
+.quickstart-sub { font-size: 12.5px; color: var(--dim); }
+
+.quickstart-form {
+    display: flex;
+    gap: 10px;
+    margin-top: 14px;
+    flex-wrap: wrap;
+}
+
+.quickstart-form input { width: 200px; }
+
+.quickstart-form #qs-prefix { width: 200px; }
+
+.quickstart-form .btn { margin-left: auto; }
+
+.qs-result {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+    margin-top: 14px;
+    padding: 12px 16px;
+    background: var(--card-2);
+    border: 1px dashed var(--accent);
+    border-radius: var(--radius);
+    flex-wrap: wrap;
+}
+
+.qs-result-label { font-size: 12px; color: var(--dim); }
+
+.qs-url {
+    font-size: 14px;
+    color: var(--accent-strong);
+    word-break: break-all;
+}
+
 /* ───────────────────────── Overview ───────────────────────── */
 
 .tab-panel { display: none; }

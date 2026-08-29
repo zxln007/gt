@@ -44,6 +44,26 @@
         <main class="main-content">
             <!-- OVERVIEW TAB -->
             <section id="tab-overview" class="tab-panel active">
+                <!-- B2 快速开始：填端口一键开跑 -->
+                <div class="section-card quickstart-card" id="quickstart-card">
+                    <div class="quickstart-head">
+                        <h3>快速开始</h3>
+                        <span class="quickstart-sub">填本地端口，一键获得公网 HTTPS 地址</span>
+                    </div>
+                    <form class="quickstart-form" id="quickstart-form">
+                        <input type="number" id="qs-port" placeholder="本地端口，如 8080" required min="1" max="65535">
+                        <input type="text" id="qs-prefix" placeholder="前缀（留空自动生成）">
+                        <button type="submit" class="btn btn-connect" id="btn-quickstart">一键穿透</button>
+                    </form>
+                    <div class="qs-result hidden" id="qs-result">
+                        <span class="qs-result-label">公网地址</span>
+                        <code class="qs-url mono" id="qs-url"></code>
+                        <button class="btn btn-secondary btn-sm" id="btn-qs-copy" type="button">复制</button>
+                        <button class="btn btn-ghost btn-sm" id="btn-qs-open" type="button">浏览器打开</button>
+                    </div>
+                    <div class="field-hint" id="qs-note"></div>
+                </div>
+
                 <div class="section-card control-header">
                     <div class="status-indicator">
                         <span class="status-dot offline" id="global-status-dot"></span>

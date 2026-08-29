@@ -104,6 +104,18 @@ const dom = {
     prefixOptions: document.getElementById('prefix-options'),
     linkConsoleSignup: document.getElementById('link-console-signup'),
 
+    // 快速开始（B2）
+    quickstartCard: document.getElementById('quickstart-card'),
+    quickstartForm: document.getElementById('quickstart-form'),
+    qsPort: document.getElementById('qs-port'),
+    qsPrefix: document.getElementById('qs-prefix'),
+    btnQuickstart: document.getElementById('btn-quickstart'),
+    qsResult: document.getElementById('qs-result'),
+    qsUrl: document.getElementById('qs-url'),
+    qsNote: document.getElementById('qs-note'),
+    btnQsCopy: document.getElementById('btn-qs-copy'),
+    btnQsOpen: document.getElementById('btn-qs-open'),
+
     // 提示框
     toast: document.getElementById('toast-notify')
 };
@@ -186,6 +198,9 @@ async function pollStatus() {
 
 function updateDashboardUI() {
     const isRunning = currentStatus.isRunning;
+
+    // 快速开始卡可见性（B2）
+    updateQuickstartVisibility();
 
     // 1. 一级视觉中心：状态条与控制按钮
     if (isRunning) {
@@ -909,6 +924,67 @@ function jumpToServerTab() {
     if (target) target.click();
 }
 
+// ── B2 快速开始 ──────────────────────────────────────
+let qsPublicUrl = "";
+
+async function quickStartFlow(e) {
+    e.preventDefault();
+    const gtApp = getGTApp();
+    if (!gtApp || !gtApp.QuickStart) { showToast("Wails Go 底层未就绪"); return; }
+
+    if (!accountData) {
+        showToast("请先在「连接」页登录账号", 4500);
+        jumpToServerTab();
+        return;
+    }
+    if (currentStatus.isRunning) {
+        showToast("隧道已在运行，请先关闭后再快速开始", 4000);
+        return;
+    }
+
+    const port = parseInt(dom.qsPort.value, 10);
+    if (!port || port < 1 || port > 65535) { showToast("请输入有效的本地端口"); return; }
+
+    dom.btnQuickstart.disabled = true;
+    dom.btnQuickstart.innerText = "配置并启动中...";
+    dom.qsResult.classList.add('hidden');
+    dom.qsNote.innerText = "";
+
+    try {
+        const r = await gtApp.QuickStart(port, dom.qsPrefix.value.trim().toLowerCase());
+        qsPublicUrl = r.publicUrl;
+        dom.qsUrl.innerText = r.publicUrl;
+        dom.qsResult.classList.remove('hidden');
+        dom.qsNote.innerText = r.issued
+            ? `已自动签发凭证 ${r.gtId} · 节点 ${r.node} · 前缀 ${r.prefix}`
+            : `凭证 ${r.gtId} · 节点 ${r.node} · 前缀 ${r.prefix}`;
+
+        // 同步本地状态
+        currentConfig = await gtApp.LoadConfig();
+        renderTunnels();
+        renderServerConfig();
+        await pollStatus();
+        await refreshAccountData();
+        showToast("一键穿透已开启！");
+    } catch (err) {
+        const msg = String(err);
+        if (msg.includes("未登录")) {
+            showToast("登录已过期，请重新登录", 4500);
+            jumpToServerTab();
+        } else {
+            showToast(`快速开始失败: ${err}`, 6000);
+        }
+    } finally {
+        dom.btnQuickstart.disabled = false;
+        dom.btnQuickstart.innerText = "一键穿透";
+    }
+}
+
+function updateQuickstartVisibility() {
+    // 隧道运行中隐藏快速开始卡（此时已不需要）
+    dom.quickstartCard.classList.toggle('hidden', !!currentStatus.isRunning);
+}
+
 // ==========================================
 // 8. 初始化程序入口 (Main Initialize)
 // ==========================================
@@ -986,6 +1062,15 @@ document.addEventListener('DOMContentLoaded', () => {
     dom.btnIssueCred.addEventListener('click', issueCredFlow);
     dom.btnApplyNode.addEventListener('click', applyNodeFlow);
     dom.btnClaimPrefix.addEventListener('click', claimPrefixFlow);
+
+    // 快速开始（B2）
+    dom.quickstartForm.addEventListener('submit', quickStartFlow);
+    dom.btnQsCopy.addEventListener('click', () => {
+        if (qsPublicUrl) window.copyToClipboard(qsPublicUrl);
+    });
+    dom.btnQsOpen.addEventListener('click', () => {
+        if (qsPublicUrl) window.openInBrowser(qsPublicUrl);
+    });
     if (dom.linkConsoleSignup) {
         dom.linkConsoleSignup.addEventListener('click', (e) => {
             e.preventDefault();
