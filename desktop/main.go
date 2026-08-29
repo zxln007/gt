@@ -71,6 +71,7 @@ func main() {
 		Height:    680,
 		MinWidth:  800,
 		MinHeight: 600,
+		DevToolsEnabled: true,
 		Windows: application.WindowsWindow{
 			BackdropType: application.Mica, // Mica 亚克力毛玻璃质感背景，素雅高级
 		},

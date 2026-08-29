@@ -336,7 +336,8 @@
 
     <div class="toast" id="toast-notify">提示内容</div>
 
-    <script src="/wails/runtime.js"></script>
+    <!-- Wails v3 runtime 是 ES Module（含顶层 export），必须以 module 加载 -->
+    <script type="module" src="/wails/runtime.js"></script>
     <script src="main.js"></script>
 </body>
 </html>
