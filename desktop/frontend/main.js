@@ -14,6 +14,9 @@ let currentStatus = {
 let logsLockScroll = false;
 let logsCached = [];
 
+// 账号状态（B1）
+let accountData = null; // GetAccountData 返回：{email, plan, credentials, prefixes, nodes}
+
 // DOM 元素引用
 const dom = {
     // 菜单导航
@@ -74,6 +77,32 @@ const dom = {
     btnLockScroll: document.getElementById('btn-lock-scroll'),
     btnClearLogs: document.getElementById('btn-clear-logs'),
     logTerminal: document.getElementById('log-terminal-output'),
+
+    // 账号元素（B1）
+    acctArea: document.getElementById('acct-area'),
+    btnSidebarLogin: document.getElementById('btn-sidebar-login'),
+    acctCard: document.getElementById('acct-card'),
+    acctLoginCard: document.getElementById('acct-login-card'),
+    acctLoggedCard: document.getElementById('acct-logged-card'),
+    acctLoginForm: document.getElementById('acct-login-form'),
+    acctEmail: document.getElementById('acct-email'),
+    acctPassword: document.getElementById('acct-password'),
+    btnAcctLogin: document.getElementById('btn-acct-login'),
+    acctEmailDisplay: document.getElementById('acct-email-display'),
+    acctPlanDisplay: document.getElementById('acct-plan-display'),
+    btnAcctLogout: document.getElementById('btn-acct-logout'),
+    acctNodeSelect: document.getElementById('acct-node-select'),
+    btnApplyNode: document.getElementById('btn-apply-node'),
+    acctNodeApplied: document.getElementById('acct-node-applied'),
+    acctCredDisplay: document.getElementById('acct-cred-display'),
+    btnIssueCred: document.getElementById('btn-issue-cred'),
+    acctSecretBox: document.getElementById('acct-secret-box'),
+    acctSecretText: document.getElementById('acct-secret-text'),
+    acctPrefixList: document.getElementById('acct-prefix-list'),
+    claimPrefixInput: document.getElementById('claim-prefix-input'),
+    btnClaimPrefix: document.getElementById('btn-claim-prefix'),
+    prefixOptions: document.getElementById('prefix-options'),
+    linkConsoleSignup: document.getElementById('link-console-signup'),
 
     // 提示框
     toast: document.getElementById('toast-notify')
@@ -347,7 +376,7 @@ function renderTunnels() {
                     <span class="detail-val">${escapeHTML(localURL)}</span>
                 </div>
                 <div class="detail-row">
-                    <span class="detail-lbl">二级子域名:</span>
+                    <span class="detail-lbl">主机前缀:</span>
                     <span class="detail-val">${escapeHTML(prefix)}</span>
                 </div>
                 <div class="detail-row">
@@ -362,7 +391,7 @@ function renderTunnels() {
             <div class="card-actions-row">
                 <div class="op-buttons">
                     <button class="btn-icon" title="编辑" onclick="openDrawer(${index})">✏️</button>
-                    <button class="btn-icon" title="删除" onclick="deleteTunnel(${index})">🗑️</button>
+                    <button class="btn-icon danger" title="删除" onclick="deleteTunnel(${index})">🗑️</button>
                 </div>
                 <!-- 独立开启/关闭本条隧道的 flat 样式 toggle 开关 -->
                 <label class="switch">
@@ -667,7 +696,221 @@ function scrollToBottomLogs() {
 }
 
 // ==========================================
-// 7. 初始化程序入口 (Main Initialize)
+// 7. 账号集成 (Account / B1)
+// ==========================================
+async function initAccount() {
+    const gtApp = getGTApp();
+    if (!gtApp || !gtApp.AccountStatus) return;
+    try {
+        const st = await gtApp.AccountStatus();
+        if (st && st.loggedIn) {
+            await refreshAccountData();
+        } else {
+            renderLoggedOut();
+        }
+    } catch (err) {
+        console.warn("账号状态检查失败:", err);
+        renderLoggedOut();
+    }
+}
+
+function renderLoggedOut() {
+    accountData = null;
+
+    // 侧栏
+    dom.acctArea.innerHTML = "";
+    const loginBtn = document.createElement('button');
+    loginBtn.className = 'btn btn-acct-login';
+    loginBtn.id = 'btn-sidebar-login';
+    loginBtn.innerText = '登录账号';
+    loginBtn.addEventListener('click', jumpToServerTab);
+    dom.acctArea.appendChild(loginBtn);
+
+    // 连接页
+    dom.acctLoginCard.classList.remove('hidden');
+    dom.acctLoggedCard.classList.add('hidden');
+}
+
+function renderAccountUI() {
+    if (!accountData) { renderLoggedOut(); return; }
+
+    // 侧栏
+    dom.acctArea.innerHTML = `
+        <div class="acct-email-row">
+            <span class="email">${escapeHTML(accountData.email)}</span>
+            <button id="btn-sidebar-logout">退出登录</button>
+        </div>`;
+    document.getElementById('btn-sidebar-logout').addEventListener('click', doLogout);
+
+    // 连接页：登录卡切换
+    dom.acctLoginCard.classList.add('hidden');
+    dom.acctLoggedCard.classList.remove('hidden');
+    dom.acctEmailDisplay.innerText = accountData.email;
+
+    const plan = accountData.plan;
+    dom.acctPlanDisplay.innerText = plan
+        ? `${plan.name || "Free"} · ${plan.host_number ?? "-"} 前缀 · ${plan.tcp_number ?? "-"} TCP`
+        : "未分配套餐（默认 Free）";
+
+    // 节点下拉
+    dom.acctNodeSelect.innerHTML = "";
+    (accountData.nodes || []).forEach(n => {
+        const opt = document.createElement('option');
+        opt.value = n.addr;
+        const dot = n.status === 'online' ? '●' : (n.status === 'maintenance' ? '◐' : '○');
+        opt.innerText = `${dot} ${n.name}（${n.region || n.addr}）`;
+        dom.acctNodeSelect.appendChild(opt);
+    });
+    if (!accountData.nodes || accountData.nodes.length === 0) {
+        const opt = document.createElement('option');
+        opt.value = "";
+        opt.innerText = "暂无可用节点";
+        dom.acctNodeSelect.appendChild(opt);
+    }
+
+    // 当前凭证（配置中的 id 高亮）
+    const credRows = (accountData.credentials || []).map(c => {
+        const current = currentConfig && currentConfig.ID === c.gt_id;
+        return `<div class="prefix-row">${current ? '★' : '·'} <b>${escapeHTML(c.gt_id)}</b>${c.enabled ? '' : '（已停用）'}</div>`;
+    });
+    dom.acctCredDisplay.innerHTML = credRows.length
+        ? credRows.join("")
+        : `<div>尚无凭证（当前配置使用的是手动/导入的凭证）</div>`;
+
+    // 前缀列表 + datalist
+    const prefixRows = (accountData.prefixes || []).map(p =>
+        `<div class="prefix-row"><b>${escapeHTML(p.prefix)}</b>.app.gtunnel.dev</div>`);
+    dom.acctPrefixList.innerHTML = prefixRows.length ? prefixRows.join("") : "<div>尚未申领前缀</div>";
+
+    dom.prefixOptions.innerHTML = "";
+    (accountData.prefixes || []).forEach(p => {
+        const opt = document.createElement('option');
+        opt.value = p.prefix;
+        dom.prefixOptions.appendChild(opt);
+    });
+}
+
+async function refreshAccountData() {
+    const gtApp = getGTApp();
+    if (!gtApp || !gtApp.GetAccountData) return;
+    try {
+        accountData = await gtApp.GetAccountData();
+        renderAccountUI();
+    } catch (err) {
+        if (String(err).includes("未登录")) {
+            renderLoggedOut();
+        } else {
+            showToast(`获取账号信息失败: ${err}`, 5000);
+        }
+    }
+}
+
+async function doLogin(e) {
+    e.preventDefault();
+    const gtApp = getGTApp();
+    if (!gtApp || !gtApp.Login) { showToast("Wails Go 底层未就绪"); return; }
+
+    dom.btnAcctLogin.disabled = true;
+    dom.btnAcctLogin.innerText = "登录中...";
+    try {
+        await gtApp.Login(dom.acctEmail.value.trim(), dom.acctPassword.value);
+        dom.acctPassword.value = "";
+        showToast("登录成功");
+        await refreshAccountData();
+    } catch (err) {
+        showToast(`登录失败: ${err}`, 5000);
+    } finally {
+        dom.btnAcctLogin.disabled = false;
+        dom.btnAcctLogin.innerText = "登录";
+    }
+}
+
+async function doLogout() {
+    const gtApp = getGTApp();
+    if (!gtApp || !gtApp.Logout) return;
+    try {
+        await gtApp.Logout();
+        renderLoggedOut();
+        showToast("已退出登录");
+    } catch (err) {
+        showToast(`退出失败: ${err}`);
+    }
+}
+
+async function issueCredFlow() {
+    const gtApp = getGTApp();
+    if (!gtApp || !gtApp.IssueCredential) return;
+
+    dom.btnIssueCred.disabled = true;
+    dom.btnIssueCred.innerText = "签发中...";
+    dom.acctSecretBox.classList.add('hidden');
+    try {
+        const issued = await gtApp.IssueCredential();
+        // 凭证已由 Go 侧写入配置，前端同步刷新
+        currentConfig = await gtApp.LoadConfig();
+        renderServerConfig();
+        renderTunnels();
+
+        dom.acctSecretText.textContent = `id:     ${issued.gt_id}\nsecret: ${issued.secret}`;
+        dom.acctSecretBox.classList.remove('hidden');
+        showToast("新凭证已签发并写入配置（secret 仅此一次展示）");
+        await refreshAccountData();
+    } catch (err) {
+        showToast(`签发失败: ${err}`, 5000);
+    } finally {
+        dom.btnIssueCred.disabled = false;
+        dom.btnIssueCred.innerText = "签发新凭证并自动配置";
+    }
+}
+
+async function applyNodeFlow() {
+    const gtApp = getGTApp();
+    if (!gtApp || !gtApp.ApplyNode) return;
+
+    const addr = dom.acctNodeSelect.value;
+    if (!addr) { showToast("暂无可用节点"); return; }
+
+    try {
+        await gtApp.ApplyNode(addr);
+        currentConfig = await gtApp.LoadConfig();
+        renderServerConfig();
+        dom.acctNodeApplied.innerText = `已应用：${currentConfig.Remote[0]}`;
+        showToast(`节点已写入配置（${currentConfig.Remote[0]}）`);
+        if (currentStatus.isRunning) {
+            showToast("节点已切换，请重启穿透使配置生效", 5000);
+        }
+    } catch (err) {
+        showToast(`应用节点失败: ${err}`, 5000);
+    }
+}
+
+async function claimPrefixFlow() {
+    const gtApp = getGTApp();
+    if (!gtApp || !gtApp.ClaimPrefix) return;
+
+    const prefix = dom.claimPrefixInput.value.trim().toLowerCase();
+    if (!prefix) { showToast("请输入前缀"); return; }
+
+    try {
+        await gtApp.ClaimPrefix(prefix);
+        dom.claimPrefixInput.value = "";
+        showToast(`前缀 ${prefix} 申领成功`);
+        await refreshAccountData();
+    } catch (err) {
+        const msg = String(err);
+        if (msg.includes("already taken")) showToast("该前缀已被占用", 4000);
+        else if (msg.includes("plan allows")) showToast("已达套餐前缀上限", 4000);
+        else showToast(`申领失败: ${err}`, 5000);
+    }
+}
+
+function jumpToServerTab() {
+    const target = document.querySelector('.menu-item[data-tab="server"]');
+    if (target) target.click();
+}
+
+// ==========================================
+// 8. 初始化程序入口 (Main Initialize)
 // ==========================================
 async function initApp() {
     // 1. 初始化 Tab 页路由
@@ -678,17 +921,20 @@ async function initApp() {
     if (gtApp) {
         try {
             currentConfig = await gtApp.LoadConfig();
-            
+
             // 渲染数据
             renderTunnels();
             renderServerConfig();
-            
+
             // 获取初始状态
             await pollStatus();
         } catch (err) {
             console.error("获取基础配置失败:", err);
             showToast("加载配置文件失败");
         }
+
+        // 账号状态恢复（B1）
+        await initAccount();
 
         // 3. 启动 Wails v3 原生事件总线监听 (监听来自 Go 的实时日志流)
         if (window.wails && window.wails.Events) {
@@ -729,10 +975,23 @@ document.addEventListener('DOMContentLoaded', () => {
     
     // 一键隐藏/显示密码
     dom.btnToggleSecret.addEventListener('click', () => {
-        const type = dom.srvSecret.type === 'password' ? 'text' : 'password';
-        dom.srvSecret.type = type;
-        dom.btnToggleSecret.innerText = type === 'password' ? '👁️' : '🔒';
+        const show = dom.srvSecret.type === 'password';
+        dom.srvSecret.type = show ? 'text' : 'password';
+        dom.btnToggleSecret.innerText = show ? "隐藏" : "显示";
     });
+
+    // 账号事件（B1）
+    dom.acctLoginForm.addEventListener('submit', doLogin);
+    dom.btnAcctLogout.addEventListener('click', doLogout);
+    dom.btnIssueCred.addEventListener('click', issueCredFlow);
+    dom.btnApplyNode.addEventListener('click', applyNodeFlow);
+    dom.btnClaimPrefix.addEventListener('click', claimPrefixFlow);
+    if (dom.linkConsoleSignup) {
+        dom.linkConsoleSignup.addEventListener('click', (e) => {
+            e.preventDefault();
+            window.openInBrowser('https://console.gtunnel.dev/auth');
+        });
+    }
 
     // 日志控制台事件
     dom.logLevelFilter.addEventListener('change', renderFilteredLogs);

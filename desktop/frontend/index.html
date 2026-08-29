@@ -3,35 +3,40 @@
 <head>
     <meta charset="UTF-8">
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>GT Desktop Client</title>
+    <title>GT Desktop</title>
     <link rel="stylesheet" href="index.css">
-    <!-- 引入 Outfit 优雅字体 -->
-    <link href="https://fonts.googleapis.com/css2?family=Outfit:wght@200;300;400;500;600&display=swap" rel="stylesheet">
 </head>
 <body>
     <div class="app-container">
         <!-- 左侧纵向导航菜单栏 -->
         <aside class="sidebar">
             <div class="sidebar-header">
-                <div class="logo-icon">⚡</div>
-                <h1 class="logo-text">GT Client</h1>
+                <span class="logo-mark"><i></i><i></i><i></i></span>
+                <h1 class="logo-text">G-Tunnel</h1>
             </div>
             <nav class="sidebar-menu">
                 <button class="menu-item active" data-tab="overview">
-                    <span class="icon">📊</span> Overview
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12h4l3 8 4-16 3 8h4"/></svg>
+                    <span>概览</span>
                 </button>
                 <button class="menu-item" data-tab="tunnels">
-                    <span class="icon">⚙️</span> Tunnels
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 7h16M4 12h10M4 17h6"/></svg>
+                    <span>隧道</span>
                 </button>
                 <button class="menu-item" data-tab="server">
-                    <span class="icon">🖥️</span> Server Settings
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="3" y="5" width="18" height="6" rx="2"/><rect x="3" y="13" width="18" height="6" rx="2"/><path d="M7 8h.01M7 16h.01"/></svg>
+                    <span>连接</span>
                 </button>
                 <button class="menu-item" data-tab="logs">
-                    <span class="icon">💻</span> Realtime Logs
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 6h16M4 12h10M4 18h13"/></svg>
+                    <span>日志</span>
                 </button>
             </nav>
             <div class="sidebar-footer">
-                <span class="version">v2.2.2</span>
+                <div class="acct-area" id="acct-area">
+                    <button class="btn btn-acct-login" id="btn-sidebar-login">登录账号</button>
+                </div>
+                <span class="version">gtunnel.dev</span>
             </div>
         </aside>
 
@@ -39,17 +44,15 @@
         <main class="main-content">
             <!-- OVERVIEW TAB -->
             <section id="tab-overview" class="tab-panel active">
-                <!-- 模块一：核心控制与状态 -->
                 <div class="section-card control-header">
                     <div class="status-indicator">
                         <span class="status-dot offline" id="global-status-dot"></span>
                         <span class="status-text" id="global-status-text">已断开连接</span>
-                        <span class="server-node-info" id="global-node-info"></span>
+                        <span class="server-node-info mono" id="global-node-info"></span>
                     </div>
                     <button class="btn btn-connect" id="btn-toggle-tunnel">开启穿透</button>
                 </div>
 
-                <!-- 模块二：核心网络遥测 (重点突出) -->
                 <div class="telemetry-grid">
                     <div class="telemetry-card">
                         <div class="card-label">Ping 延迟</div>
@@ -63,29 +66,25 @@
                     </div>
                 </div>
 
-                <!-- 模块三：会话累计统计 (无框降噪，极致克制) -->
                 <div class="session-stats-bar">
                     <div class="stat-item">
-                        <span class="stat-lbl">连接状态:</span>
+                        <span class="stat-lbl">状态</span>
                         <span class="stat-val" id="stat-state">OFFLINE</span>
                     </div>
-                    <div class="stat-divider">|</div>
                     <div class="stat-item">
-                        <span class="stat-lbl">并发链路:</span>
+                        <span class="stat-lbl">映射数</span>
                         <span class="stat-val" id="stat-conns">0</span>
                     </div>
-                    <div class="stat-divider">|</div>
                     <div class="stat-item">
-                        <span class="stat-lbl">客户端 ID:</span>
-                        <span class="stat-val" id="stat-client-id">--</span>
+                        <span class="stat-lbl">客户端 ID</span>
+                        <span class="stat-val mono" id="stat-client-id">--</span>
                     </div>
                 </div>
 
-                <!-- 模块四：活动服务映射列表 -->
                 <div class="active-tunnels-container">
-                    <h2 class="section-title">活动穿透服务 (Active Mappings)</h2>
+                    <h2 class="section-title">活动穿透服务</h2>
                     <div class="no-tunnels-msg" id="no-active-tunnels">
-                        当前暂无运行中的穿透映射端口。请在 Tunnels 页面配置并启用。
+                        当前暂无运行中的穿透映射。请在「隧道」页配置，并在「连接」页登录账号一键配置。
                     </div>
                     <div class="tunnel-list" id="active-tunnel-list"></div>
                 </div>
@@ -94,16 +93,12 @@
             <!-- TUNNELS TAB -->
             <section id="tab-tunnels" class="tab-panel">
                 <div class="panel-header">
-                    <h2 class="panel-title">隧道穿透配置</h2>
+                    <h2 class="panel-title">隧道配置</h2>
                     <button class="btn btn-primary" id="btn-add-tunnel">+ 添加隧道</button>
                 </div>
 
-                <!-- 隧道列表 -->
-                <div class="tunnels-grid" id="tunnels-list">
-                    <!-- 动态生成卡片 -->
-                </div>
+                <div class="tunnels-grid" id="tunnels-list"></div>
 
-                <!-- 侧滑添加/编辑抽屉 (Slide-out Drawer) -->
                 <div class="drawer-overlay" id="drawer-overlay"></div>
                 <div class="drawer" id="tunnel-drawer">
                     <div class="drawer-header">
@@ -112,38 +107,40 @@
                     </div>
                     <form class="drawer-form" id="tunnel-form">
                         <input type="hidden" id="form-edit-index" value="-1">
-                        
+
                         <div class="form-group">
-                            <label for="tunnel-local">本地服务 URL (Local)*</label>
-                            <input type="text" id="tunnel-local" placeholder="例如 http://127.0.0.1:8080 或 tcp://127.0.0.1:22" required>
+                            <label for="tunnel-local">本地服务地址 *</label>
+                            <input type="text" id="tunnel-local" placeholder="http://127.0.0.1:8080 或 tcp://127.0.0.1:22" required>
                         </div>
 
                         <div class="form-group">
-                            <label for="tunnel-prefix">二级子域名主机前缀 (HostPrefix)</label>
-                            <input type="text" id="tunnel-prefix" placeholder="例如 myapp (可选，仅 HTTP 映射)">
+                            <label for="tunnel-prefix">主机前缀（HTTP 映射，需先在控制台申领）</label>
+                            <input type="text" id="tunnel-prefix" list="prefix-options" placeholder="例如 myapp">
+                            <datalist id="prefix-options"></datalist>
+                            <div class="field-hint">绑定后可通过 https://前缀.app.gtunnel.dev 访问</div>
                         </div>
 
                         <div class="form-group">
-                            <label for="tunnel-remote-port">远程固定 TCP 端口 (RemoteTCPPort)</label>
-                            <input type="number" id="tunnel-remote-port" placeholder="例如 2022 (可选，仅 TCP 映射)">
+                            <label for="tunnel-remote-port">远程 TCP 端口</label>
+                            <input type="number" id="tunnel-remote-port" placeholder="例如 2022（仅 TCP 映射）">
                         </div>
 
                         <div class="form-group row-group">
                             <div class="form-checkbox">
                                 <input type="checkbox" id="tunnel-random-port" checked>
-                                <label for="tunnel-random-port">随机分配远程端口 (RemoteTCPRandom)</label>
+                                <label for="tunnel-random-port">端口被占用时随机分配</label>
                             </div>
                         </div>
 
                         <div class="form-group row-group">
                             <div class="form-checkbox">
                                 <input type="checkbox" id="tunnel-use-host">
-                                <label for="tunnel-use-host">强校验本地 Host 头 (UseLocalAsHTTPHost)</label>
+                                <label for="tunnel-use-host">严格校验本地 Host 头</label>
                             </div>
                         </div>
 
                         <div class="drawer-footer">
-                            <button type="button" class="btn btn-secondary" id="btn-cancel-tunnel">取消</button>
+                            <button type="button" class="btn btn-ghost" id="btn-cancel-tunnel">取消</button>
                             <button type="submit" class="btn btn-primary">保存映射</button>
                         </div>
                     </form>
@@ -152,100 +149,164 @@
 
             <!-- SERVER TAB -->
             <section id="tab-server" class="tab-panel">
-                <h2 class="panel-title">中转节点配置</h2>
+                <h2 class="panel-title">连接配置</h2>
 
-                <div class="import-config-card">
-                    <div class="import-config-header">
-                        <div>
-                            <div class="import-config-title">一键导入客户端配置</div>
-                            <div class="import-config-desc">支持导入 GT client YAML，或粘贴 server 生成的 gt://import 配置链接。</div>
+                <!-- 账号模式卡（B1：登录后一切自动） -->
+                <div class="section-card acct-card" id="acct-card">
+                    <!-- 未登录：登录表单 -->
+                    <div id="acct-login-card">
+                        <div class="acct-login-head">
+                            <h3>登录 G-Tunnel 账号</h3>
+                            <p>登录后自动获取节点与凭证，无需手动配置。还没有账号？前往 <a href="https://console.gtunnel.dev/auth" id="link-console-signup">console.gtunnel.dev</a> 注册。</p>
                         </div>
-                        <div class="import-config-actions">
-                            <button type="button" class="btn btn-primary" id="btn-import-file">从文件导入</button>
-                            <button type="button" class="btn btn-secondary" id="btn-import-clipboard">从剪贴板导入</button>
-                        </div>
-                    </div>
-                    <textarea id="import-config-text" class="import-config-text" placeholder="也可以在这里粘贴 client.yaml 内容或 gt://import?profile=... 链接"></textarea>
-                    <div class="import-config-footer">
-                        <span class="import-config-hint">导入会覆盖当前服务器、鉴权和隧道配置。导入后如 tunnel 正在运行，需要重启穿透生效。</span>
-                        <button type="button" class="btn btn-secondary" id="btn-import-text">导入粘贴内容</button>
-                    </div>
-                    <input type="file" id="import-config-file" accept=".yaml,.yml,.txt" hidden>
-                </div>
-                
-                <form class="server-form" id="server-config-form">
-                    <div class="form-row">
-                        <div class="form-group flex-1">
-                            <label for="srv-remote">服务器中转地址 (Remote)*</label>
-                            <input type="text" id="srv-remote" placeholder="例如 tcp://your-server-ip:7001" required>
-                        </div>
-                        <div class="form-group flex-1">
-                            <label for="srv-stun">STUN 穿透打洞服务器 (RemoteSTUN)</label>
-                            <input type="text" id="srv-stun" placeholder="例如 your-stun-server:3478">
-                        </div>
+                        <form class="acct-login-form" id="acct-login-form">
+                            <input type="email" id="acct-email" placeholder="邮箱" required autocomplete="email">
+                            <input type="password" id="acct-password" placeholder="密码" required autocomplete="current-password">
+                            <button type="submit" class="btn btn-primary" id="btn-acct-login">登录</button>
+                        </form>
                     </div>
 
-                    <div class="form-row">
-                        <div class="form-group flex-1">
-                            <label for="srv-id">客户端唯一鉴权 ID*</label>
-                            <input type="text" id="srv-id" placeholder="例如 developer-id" required>
+                    <!-- 已登录：账号工作台 -->
+                    <div id="acct-logged-card" class="hidden">
+                        <div class="acct-logged-head">
+                            <div>
+                                <div class="acct-email mono" id="acct-email-display"></div>
+                                <div class="acct-plan" id="acct-plan-display"></div>
+                            </div>
+                            <button class="btn btn-ghost btn-sm" id="btn-acct-logout">退出登录</button>
                         </div>
-                        <div class="form-group flex-1">
-                            <label for="srv-secret">鉴权验证密钥 (Secret)*</label>
-                            <div class="password-input-container">
-                                <input type="password" id="srv-secret" required>
-                                <button type="button" class="btn-toggle-pwd" id="btn-toggle-secret-visibility">👁️</button>
+
+                        <div class="acct-grid">
+                            <!-- 节点选择 -->
+                            <div class="acct-block">
+                                <div class="acct-block-title">中转节点</div>
+                                <div class="acct-block-row">
+                                    <select id="acct-node-select" class="select-filter"></select>
+                                    <button class="btn btn-secondary btn-sm" id="btn-apply-node">应用到配置</button>
+                                </div>
+                                <div class="field-hint" id="acct-node-applied"></div>
+                            </div>
+
+                            <!-- 凭证 -->
+                            <div class="acct-block">
+                                <div class="acct-block-title">接入凭证</div>
+                                <div class="acct-cred-info mono" id="acct-cred-display"></div>
+                                <button class="btn btn-primary btn-sm" id="btn-issue-cred">签发新凭证并自动配置</button>
+                                <div class="secret-once hidden" id="acct-secret-box">
+                                    <div>secret 只显示这一次：</div>
+                                    <pre class="mono" id="acct-secret-text"></pre>
+                                </div>
+                            </div>
+
+                            <!-- 前缀管理 -->
+                            <div class="acct-block">
+                                <div class="acct-block-title">已申领前缀</div>
+                                <div class="acct-prefix-list mono" id="acct-prefix-list"></div>
+                                <div class="acct-block-row">
+                                    <input type="text" id="claim-prefix-input" placeholder="new-prefix">
+                                    <button class="btn btn-secondary btn-sm" id="btn-claim-prefix">申领</button>
+                                </div>
                             </div>
                         </div>
                     </div>
+                </div>
 
-                    <h3 class="sub-form-title">高级连接引擎选项</h3>
-                    <div class="form-row">
-                        <div class="form-group flex-1">
-                            <label for="srv-max-conn">连接池并发链路数上限</label>
-                            <input type="number" id="srv-max-conn" min="1" max="10" value="3">
+                <!-- 高级设置（手动配置 / 导入） -->
+                <details class="advanced-details" id="advanced-settings">
+                    <summary>高级设置（手动配置与导入）</summary>
+
+                    <div class="import-config-card">
+                        <div class="import-config-header">
+                            <div>
+                                <div class="import-config-title">一键导入客户端配置</div>
+                                <div class="import-config-desc">支持导入 GT client YAML，或粘贴 server 生成的 gt://import 配置链接。</div>
+                            </div>
+                            <div class="import-config-actions">
+                                <button type="button" class="btn btn-secondary btn-sm" id="btn-import-file">从文件导入</button>
+                                <button type="button" class="btn btn-secondary btn-sm" id="btn-import-clipboard">从剪贴板导入</button>
+                            </div>
                         </div>
-                        <div class="form-group flex-1">
-                            <label for="srv-idle-conn">保活空闲连接数</label>
-                            <input type="number" id="srv-idle-conn" min="1" max="10" value="1">
+                        <textarea id="import-config-text" class="import-config-text" placeholder="也可以在这里粘贴 client.yaml 内容或 gt://import?profile=... 链接"></textarea>
+                        <div class="import-config-footer">
+                            <span class="import-config-hint">导入会覆盖当前服务器、鉴权和隧道配置。导入后如 tunnel 正在运行，需要重启穿透生效。</span>
+                            <button type="button" class="btn btn-secondary btn-sm" id="btn-import-text">导入粘贴内容</button>
                         </div>
+                        <input type="file" id="import-config-file" accept=".yaml,.yml,.txt" hidden>
                     </div>
 
-                    <div class="form-row advance-toggles">
-                        <div class="form-checkbox">
-                            <input type="checkbox" id="srv-bbr">
-                            <label for="srv-bbr">开启 QUIC BBR 拥塞控制算法 (OpenBBR)</label>
+                    <form class="server-form" id="server-config-form">
+                        <div class="form-row">
+                            <div class="form-group flex-1">
+                                <label for="srv-remote">服务器中转地址 (Remote)*</label>
+                                <input type="text" id="srv-remote" placeholder="例如 tcp://relay.example.com:80" required>
+                            </div>
+                            <div class="form-group flex-1">
+                                <label for="srv-stun">STUN 服务器 (RemoteSTUN)</label>
+                                <input type="text" id="srv-stun" placeholder="例如 stun.example.com:3478">
+                            </div>
                         </div>
-                        <div class="form-checkbox">
-                            <input type="checkbox" id="srv-insecure">
-                            <label for="srv-insecure">接受自签名 SSL 证书 (RemoteCertInsecure)</label>
-                        </div>
-                    </div>
 
-                    <div class="form-actions">
-                        <button type="button" class="btn btn-secondary" id="btn-test-server">测试连接</button>
-                        <button type="submit" class="btn btn-primary" id="btn-save-server">保存配置</button>
-                    </div>
-                </form>
+                        <div class="form-row">
+                            <div class="form-group flex-1">
+                                <label for="srv-id">鉴权 ID*</label>
+                                <input type="text" id="srv-id" placeholder="客户端鉴权 ID" required>
+                            </div>
+                            <div class="form-group flex-1">
+                                <label for="srv-secret">鉴权密钥 (Secret)*</label>
+                                <div class="password-input-container">
+                                    <input type="password" id="srv-secret" required>
+                                    <button type="button" class="btn-toggle-pwd" id="btn-toggle-secret-visibility">显示</button>
+                                </div>
+                            </div>
+                        </div>
+
+                        <h3 class="sub-form-title">高级连接选项</h3>
+                        <div class="form-row">
+                            <div class="form-group flex-1">
+                                <label for="srv-max-conn">连接池并发上限</label>
+                                <input type="number" id="srv-max-conn" min="1" max="10" value="3">
+                            </div>
+                            <div class="form-group flex-1">
+                                <label for="srv-idle-conn">保活空闲连接数</label>
+                                <input type="number" id="srv-idle-conn" min="1" max="10" value="1">
+                            </div>
+                        </div>
+
+                        <div class="form-row advance-toggles">
+                            <div class="form-checkbox">
+                                <input type="checkbox" id="srv-bbr">
+                                <label for="srv-bbr">QUIC BBR 拥塞控制</label>
+                            </div>
+                            <div class="form-checkbox">
+                                <input type="checkbox" id="srv-insecure">
+                                <label for="srv-insecure">接受自签名 SSL 证书</label>
+                            </div>
+                        </div>
+
+                        <div class="form-actions">
+                            <button type="button" class="btn btn-secondary" id="btn-test-server">测试连接</button>
+                            <button type="submit" class="btn btn-primary" id="btn-save-server">保存配置</button>
+                        </div>
+                    </form>
+                </details>
             </section>
 
             <!-- LOGS TAB -->
             <section id="tab-logs" class="tab-panel">
                 <div class="panel-header">
-                    <h2 class="panel-title">实时网络日志</h2>
+                    <h2 class="panel-title">实时日志</h2>
                     <div class="logs-actions">
                         <select id="log-level-filter" class="select-filter">
-                            <option value="ALL">全部级别 (ALL)</option>
-                            <option value="INFO">信息 (INFO)</option>
-                            <option value="WARN">警告 (WARN)</option>
-                            <option value="ERROR">错误 (ERROR)</option>
+                            <option value="ALL">全部级别</option>
+                            <option value="INFO">INFO</option>
+                            <option value="WARN">WARN</option>
+                            <option value="ERROR">ERROR</option>
                         </select>
-                        <button class="btn btn-secondary btn-sm" id="btn-lock-scroll">锁定滚动</button>
-                        <button class="btn btn-secondary btn-sm" id="btn-clear-logs">清屏</button>
+                        <button class="btn btn-ghost btn-sm" id="btn-lock-scroll">锁定滚动</button>
+                        <button class="btn btn-ghost btn-sm" id="btn-clear-logs">清屏</button>
                     </div>
                 </div>
 
-                <!-- 虚拟终端面板 -->
                 <div class="terminal-log-container">
                     <pre class="terminal-log" id="log-terminal-output"></pre>
                 </div>
@@ -253,10 +314,8 @@
         </main>
     </div>
 
-    <!-- 弹窗反馈提示 (Toast) -->
     <div class="toast" id="toast-notify">提示内容</div>
 
-    <!-- Wails v3 JS Runtime -->
     <script src="/wails/runtime.js"></script>
     <script src="main.js"></script>
 </body>
