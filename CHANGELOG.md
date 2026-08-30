@@ -7,6 +7,30 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v2.4.0] - 2026-08-30
+
+### 🚀 SaaS Control Plane Integration
+* **authAPI Quota Contract**: relay now resolves per-user quotas (host/TCP numbers, speed, connections, monthly traffic) from the control plane on every tunnel authentication, with a TTL cache.
+* **Per-User Traffic Metering**: hot-path atomic byte counters (upload/download) on all data planes (HTTP/TCP/SNI), accumulated server-side across sessions and flushed to the `usageAPI` every 30s with retry-on-failure and shutdown flush.
+* **Monthly Traffic Enforcement**: the control plane rejects authentication (`result:false`) once a user's month-to-date traffic reaches the plan limit; tunnels are cut within the auth cache TTL.
+
+### 🌟 Features
+* **httpMUXHeader now configurable** (`NETWORK_HTTPMUXHEADER`, defaults to `Host`) — browser-friendly host routing out of the box.
+* **Third-level tunnel domains**: users get `prefix.app.gtunnel.dev` addresses; relay host parsing takes the first label of any depth suffix.
+* **Unified CI pipeline**: container + release workflows merged into a single `build.yml` — one 5-platform build feeds both Docker images and GitHub release binaries; rc/alpha/beta tags publish as prereleases without stealing `latest`.
+* **Docker image semver tags**: images are tagged `server-<version>` / `client-<version>` on releases, with `latest` pointing at the newest stable tag (not the dev branch).
+
+### 🏗️ Architecture
+* **Desktop client extracted** to a dedicated repository (`gt-desktop`) to decouple SaaS account integration and release cadence from the data plane.
+
+### 🐛 Fixes
+* Entrypoint no longer hardcodes `httpMUXHeader: EID` (browsers got EOF on tunnel domains).
+* Let's Encrypt wildcard cert (`*.app.gtunnel.dev` + `relay.gtunnel.dev` SAN) mounted for relay TLS.
+* Release workflow resolves WebRTC/abseil headers via shallow `gclient sync` (prebuilt archives ship only libs).
+* macOS Intel (macos-13) runner retired from the matrix; Intel Macs run the aarch64 build under Rosetta 2.
+
+---
+
 ## [v2.3.0] - 2026-05-28
 
 ### 🚀 Architectural Breakthrough: Monorepo Transition
