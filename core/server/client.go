@@ -48,6 +48,10 @@ type client struct {
 
 	connections uint32
 
+	// per-user traffic counters, shared slot owned by the Server so the
+	// totals survive this client going away
+	usage *usageCounter
+
 	host host
 
 	checksumBlacklist     *lru.Cache[[32]byte, any]
@@ -64,6 +68,7 @@ func (c *client) init(id string, u user, s *Server) {
 	c.portsManager = u.portsManager
 	c.speedNum = u.Speed
 	c.connections = u.Connections
+	c.usage = s.usageOf(id)
 	c.checksumBlacklist, _ = lru.New[[32]byte, any](3)
 	c.logger = s.Logger.With().
 		Str("client", id).
@@ -73,6 +78,18 @@ func (c *client) init(id string, u user, s *Server) {
 	c.id = id
 	c.tunnels = make(map[*conn]struct{})
 	c.tunnelsRWMtx.Unlock()
+}
+
+func (c *client) addUp(n uint64) {
+	if c.usage != nil {
+		atomic.AddUint64(&c.usage.up, n)
+	}
+}
+
+func (c *client) addDown(n uint64) {
+	if c.usage != nil {
+		atomic.AddUint64(&c.usage.down, n)
+	}
 }
 
 func (c *client) process(task *conn) (err error) {

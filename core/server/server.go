@@ -58,6 +58,7 @@ type Server struct {
 	portsManager portsManager
 	Logger       logger.Logger
 	id2Client    sync.Map
+	id2Usage     sync.Map // key: id(string) value: *usageCounter，跨会话累计
 	closing      uint32
 	tlsListener  net.Listener
 	listener     net.Listener
@@ -463,6 +464,8 @@ func (s *Server) Start() (err error) {
 		}
 	}
 
+	s.startUsageReporter()
+
 	conf4log := *s.Config()
 	conf4log.Password = "******"
 	conf4log.SigningKey = "******"
@@ -775,6 +778,7 @@ func (s *Server) Shutdown() {
 	if !atomic.CompareAndSwapUint32(&s.closing, 0, 1) {
 		return
 	}
+	s.flushUsageOnExit()
 	defer s.Logger.Close()
 	event := s.Logger.Info()
 	if s.apiServer != nil {

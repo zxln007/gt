@@ -916,6 +916,7 @@ func (c *conn) readLoop(cli *client) (reload bool) {
 			if err != nil {
 				return
 			}
+			cli.addUp(uint64(l)) // 用量计量：客户端上行
 			if cli.needSpeedLimit() {
 				cli.speedLimit(l, true) // 对客户端上行进行限速
 			}
@@ -1036,6 +1037,7 @@ func (c *conn) process(taskID uint32, task *conn, cli *client) {
 			return
 		}
 	}
+	cli.addDown(uint64(l)) // 用量计量：客户端下行（首包）
 	if cli.needSpeedLimit() {
 		cli.speedLimit(uint32(l), false) // 对客户端下行进行限速
 	}
@@ -1069,6 +1071,7 @@ func (c *conn) process(taskID uint32, task *conn, cli *client) {
 			}
 		}
 		l, rErr = task.Reader.Read(buf[bufIndex+4:])
+		cli.addDown(uint64(l)) // 用量计量：客户端下行
 		if cli.needSpeedLimit() {
 			cli.speedLimit(uint32(l), false) // 对客户端下行进行限速
 		}
