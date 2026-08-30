@@ -38,11 +38,6 @@ func (s *Server) startUsageReporter() {
 		return
 	}
 	go func() {
-		defer func() {
-			if e := recover(); e != nil {
-				s.Logger.Error().Msgf("usage reporter recovered: %#v", e)
-			}
-		}()
 		client := &http.Client{Timeout: 10 * time.Second}
 		ticker := time.NewTicker(30 * time.Second)
 		defer ticker.Stop()
@@ -50,9 +45,20 @@ func (s *Server) startUsageReporter() {
 			if atomic.LoadUint32(&s.closing) == 1 {
 				return
 			}
-			s.flushUsage(client)
+			s.runFlushGuarded(client)
 		}
 	}()
+}
+
+// runFlushGuarded keeps the reporter alive across panics; a single panic in
+// the old top-level recover permanently killed the reporter goroutine.
+func (s *Server) runFlushGuarded(client *http.Client) {
+	defer func() {
+		if e := recover(); e != nil {
+			s.Logger.Error().Msgf("usage flush panicked, reporter continues: %#v", e)
+		}
+	}()
+	s.flushUsage(client)
 }
 
 func (s *Server) flushUsage(client *http.Client) {
@@ -95,7 +101,13 @@ func (s *Server) flushUsage(client *http.Client) {
 	if resp.StatusCode != http.StatusOK {
 		s.Logger.Warn().Int("status", resp.StatusCode).Msg("usage report rejected, will retry next tick")
 		s.reAddUsage(reports)
+		return
 	}
+	var total uint64
+	for _, r := range reports {
+		total += r.Up + r.Down
+	}
+	s.Logger.Info().Uint64("bytes", total).Int("ids", len(reports)).Msg("usage flushed")
 }
 
 // reAddUsage puts swapped-out counters back after a failed report.
