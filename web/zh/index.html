@@ -26,6 +26,7 @@
       </a>
       <div class="nav-links">
         <a href="#features">特性</a>
+        <a href="#desktop">桌面版</a>
         <a href="#benchmark">压测数据</a>
         <a href="#download">下载</a>
         <a href="#generator">命令生成</a>
@@ -78,6 +79,30 @@
 
   <main id="main">
 
+    <!-- ═══ 三步上手 ═══ -->
+    <section id="steps" class="section">
+      <div class="container">
+        <h2 class="reveal">三步开始</h2>
+        <div class="steps">
+          <a class="step panel reveal" href="#desktop">
+            <span class="step-num num" aria-hidden="true">1</span>
+            <h3>安装</h3>
+            <p>下载 Windows / macOS 桌面客户端,Linux 服务器用单文件 CLI。</p>
+          </a>
+          <a class="step panel reveal" style="--d:.06s" href="https://console.gtunnel.dev" target="_blank" rel="noopener">
+            <span class="step-num num" aria-hidden="true">2</span>
+            <h3>注册并签发凭证</h3>
+            <p>在控制台免费注册账号,一键签发客户端 ID / Secret。</p>
+          </a>
+          <a class="step panel reveal" style="--d:.12s" href="#generator">
+            <span class="step-num num" aria-hidden="true">3</span>
+            <h3>一键穿透</h3>
+            <p>桌面版:选中转节点,点开始;CLI:把凭证填进下方命令生成器。</p>
+          </a>
+        </div>
+      </div>
+    </section>
+
     <!-- ═══ 特性 bento ═══ -->
     <section id="features" class="section">
       <div class="container">
@@ -102,6 +127,37 @@
             <h3>单二进制,开箱即用</h3>
             <p>server 与 client 是同一个可执行文件,Docker 一行启动;客户端常驻内存约 17MB,低配 VPS 与树莓派都能跑。</p>
           </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ 桌面版 ═══ -->
+    <section id="desktop" class="section">
+      <div class="container">
+        <h2 class="reveal">不喜欢敲命令?</h2>
+        <p class="section-sub reveal">GT-Desktop 把 gt 引擎装进原生应用:登录一次,选中转节点,一键把本地端口放到公网。无需终端,无需配置文件。</p>
+
+        <figure class="desktop-shot panel reveal">
+          <img src="/assets/desktop-overview-zh.png" alt="GT-Desktop 主界面:穿透映射、实时速率与延迟" width="1280" height="800" loading="lazy">
+        </figure>
+
+        <div class="desktop-dl">
+          <div class="panel desktop-dl-row reveal">
+            <div class="dl-os">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M0,0H11.377V11.372H0ZM12.623,0H24V11.372H12.623ZM0,12.623H11.377V24H0Zm12.623,0H24V24H12.623Z"/></svg>
+              <span>Windows 10 / 11</span>
+            </div>
+            <p class="desktop-dl-desc">安装版(推荐,内置 gt worker)或免安装便携版 zip。</p>
+            <a class="btn btn-primary dl-btn" href="https://github.com/zxln007/gt-desktop/releases" target="_blank" rel="noopener">下载</a>
+          </div>
+          <div class="panel desktop-dl-row reveal" style="--d:.06s">
+            <div class="dl-os">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.54 9.103 1.51 12.06 1.005 1.45 2.19 3.07 3.766 3.01 1.524-.06 2.098-.98 3.94-.98 1.829 0 2.36.98 3.945.95 1.62-.03 2.66-1.46 3.65-2.9 1.14-1.67 1.61-3.29 1.64-3.38-.03-.02-3.15-1.21-3.18-4.79-.03-2.99 2.45-4.43 2.56-4.5-1.4-2.06-3.56-2.29-4.32-2.34-2.02-.164-3.55 1.04-4.55 1.04zm2.146-4.48c.883-1.07 1.48-2.55 1.317-4.02-1.264.05-2.8.84-3.71 1.9-.81.93-1.52 2.43-1.33 3.88 1.41.11 2.85-.69 3.723-1.76z"/></svg>
+              <span>macOS(Apple Silicon)</span>
+            </div>
+            <p class="desktop-dl-desc">DMG 安装镜像,内置 gt worker。暂为 ad-hoc 签名,首次打开请右键 → 打开。</p>
+            <a class="btn btn-primary dl-btn" href="https://github.com/zxln007/gt-desktop/releases" target="_blank" rel="noopener">下载</a>
+          </div>
         </div>
       </div>
     </section>
@@ -205,7 +261,7 @@
     <section id="generator" class="section">
       <div class="container">
         <h2 class="reveal">命令生成器</h2>
-        <p class="section-sub reveal">填入中转服务参数,生成客户端启动命令。</p>
+        <p class="section-sub reveal">填入中转服务参数,生成客户端启动命令。还没有 ID / Secret?<a href="https://console.gtunnel.dev" target="_blank" rel="noopener">去控制台签发</a>,一分钟搞定。</p>
         <div class="gen panel reveal">
           <div class="gen-fields">
             <div class="field">
@@ -247,6 +303,7 @@
       </a>
       <nav class="footer-links" aria-label="页脚">
         <a href="https://github.com/zxln007/gt" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/zxln007/gt-desktop" target="_blank" rel="noopener">GT-Desktop</a>
         <a href="https://admin.gtunnel.dev" target="_blank" rel="noopener">管理台</a>
         <a href="https://github.com/isrc-cas/gt" target="_blank" rel="noopener">上游项目</a>
       </nav>

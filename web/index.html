@@ -26,6 +26,7 @@
       </a>
       <div class="nav-links">
         <a href="#features">Features</a>
+        <a href="#desktop">Desktop app</a>
         <a href="#benchmark">Benchmarks</a>
         <a href="#download">Download</a>
         <a href="#generator">Command builder</a>
@@ -78,6 +79,30 @@
 
   <main id="main">
 
+    <!-- ═══ Start in three steps ═══ -->
+    <section id="steps" class="section">
+      <div class="container">
+        <h2 class="reveal">Start in three steps</h2>
+        <div class="steps">
+          <a class="step panel reveal" href="#desktop">
+            <span class="step-num num" aria-hidden="true">1</span>
+            <h3>Install</h3>
+            <p>Grab the desktop app for Windows or macOS — or the single-binary CLI for Linux servers.</p>
+          </a>
+          <a class="step panel reveal" style="--d:.06s" href="https://console.gtunnel.dev" target="_blank" rel="noopener">
+            <span class="step-num num" aria-hidden="true">2</span>
+            <h3>Sign in &amp; get credentials</h3>
+            <p>Create a free account in the console and issue your client ID / secret with one click.</p>
+          </a>
+          <a class="step panel reveal" style="--d:.12s" href="#generator">
+            <span class="step-num num" aria-hidden="true">3</span>
+            <h3>Go live</h3>
+            <p>Desktop: pick a relay node and hit start. CLI: paste your credentials into the command builder below.</p>
+          </a>
+        </div>
+      </div>
+    </section>
+
     <!-- ═══ Features bento ═══ -->
     <section id="features" class="section">
       <div class="container">
@@ -102,6 +127,37 @@
             <h3>One binary, zero setup</h3>
             <p>Server and client are the same executable; one Docker line to start. The client sits around 17MB RSS, happy on a cheap VPS or a Raspberry Pi.</p>
           </article>
+        </div>
+      </div>
+    </section>
+
+    <!-- ═══ Desktop app ═══ -->
+    <section id="desktop" class="section">
+      <div class="container">
+        <h2 class="reveal">Prefer clicks over commands?</h2>
+        <p class="section-sub reveal">GT-Desktop ships the gt engine in a native app: sign in once, pick a relay node, one click to put a local port on the internet. No terminal, no config files.</p>
+
+        <figure class="desktop-shot panel reveal">
+          <img src="/assets/desktop-overview-en.png" alt="GT-Desktop dashboard: active tunnels with live throughput and latency" width="1280" height="800" loading="lazy">
+        </figure>
+
+        <div class="desktop-dl">
+          <div class="panel desktop-dl-row reveal">
+            <div class="dl-os">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M0,0H11.377V11.372H0ZM12.623,0H24V11.372H12.623ZM0,12.623H11.377V24H0Zm12.623,0H24V24H12.623Z"/></svg>
+              <span>Windows 10 / 11</span>
+            </div>
+            <p class="desktop-dl-desc">Installer (recommended, bundles the gt worker) or portable zip.</p>
+            <a class="btn btn-primary dl-btn" href="https://github.com/zxln007/gt-desktop/releases" target="_blank" rel="noopener">Download</a>
+          </div>
+          <div class="panel desktop-dl-row reveal" style="--d:.06s">
+            <div class="dl-os">
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true"><path d="M12.152 6.896c-.948 0-2.415-1.078-3.96-1.04-2.04.027-3.91 1.183-4.961 3.014-2.117 3.675-.54 9.103 1.51 12.06 1.005 1.45 2.19 3.07 3.766 3.01 1.524-.06 2.098-.98 3.94-.98 1.829 0 2.36.98 3.945.95 1.62-.03 2.66-1.46 3.65-2.9 1.14-1.67 1.61-3.29 1.64-3.38-.03-.02-3.15-1.21-3.18-4.79-.03-2.99 2.45-4.43 2.56-4.5-1.4-2.06-3.56-2.29-4.32-2.34-2.02-.164-3.55 1.04-4.55 1.04zm2.146-4.48c.883-1.07 1.48-2.55 1.317-4.02-1.264.05-2.8.84-3.71 1.9-.81.93-1.52 2.43-1.33 3.88 1.41.11 2.85-.69 3.723-1.76z"/></svg>
+              <span>macOS (Apple Silicon)</span>
+            </div>
+            <p class="desktop-dl-desc">DMG bundle with the gt worker. Ad-hoc signed — right-click the app and choose Open on first launch.</p>
+            <a class="btn btn-primary dl-btn" href="https://github.com/zxln007/gt-desktop/releases" target="_blank" rel="noopener">Download</a>
+          </div>
         </div>
       </div>
     </section>
@@ -205,7 +261,7 @@
     <section id="generator" class="section">
       <div class="container">
         <h2 class="reveal">Command builder</h2>
-        <p class="section-sub reveal">Fill in your relay parameters and get the client launch command.</p>
+        <p class="section-sub reveal">Fill in your relay parameters and get the client launch command. No ID or secret yet? <a href="https://console.gtunnel.dev" target="_blank" rel="noopener">Issue one in the console</a> — it takes about a minute.</p>
         <div class="gen panel reveal">
           <div class="gen-fields">
             <div class="field">
@@ -247,6 +303,7 @@
       </a>
       <nav class="footer-links" aria-label="Footer">
         <a href="https://github.com/zxln007/gt" target="_blank" rel="noopener">GitHub</a>
+        <a href="https://github.com/zxln007/gt-desktop" target="_blank" rel="noopener">GT-Desktop</a>
         <a href="https://admin.gtunnel.dev" target="_blank" rel="noopener">Admin console</a>
         <a href="https://github.com/isrc-cas/gt" target="_blank" rel="noopener">Upstream project</a>
       </nav>
