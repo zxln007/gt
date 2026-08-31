@@ -394,3 +394,33 @@ p { margin: 0; }
   font-size: 14px; font-weight: 500;
 }
 .nav-console:hover { background: var(--accent-strong); text-decoration: none; }
+
+/* ── 三步上手 ── */
+.steps { display: grid; grid-template-columns: repeat(3, 1fr); gap: 14px; }
+.step { display: block; padding: 22px; }
+.step:hover { text-decoration: none; border-color: var(--line-strong); }
+.step .step-num {
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 30px; height: 30px; border-radius: 8px; margin-bottom: 14px;
+  background: var(--accent); color: var(--on-accent); font-weight: 700; font-size: 15px;
+}
+.step h3 { font-size: 16px; margin-bottom: 8px; }
+.step p { color: var(--dim); font-size: 14px; }
+
+/* ── 桌面版 ── */
+.desktop-shot { margin: 0 0 16px; padding: 10px; }
+.desktop-shot img {
+  display: block; width: 100%; height: auto;
+  border-radius: calc(var(--r-panel) - 4px); border: 1px solid var(--line);
+}
+.desktop-dl { display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.desktop-dl-row { display: flex; flex-direction: column; gap: 10px; padding: 18px 20px; }
+.desktop-dl-row .desktop-dl-desc { flex: 1; color: var(--dim); font-size: 14px; }
+.desktop-dl-row .dl-btn { align-self: flex-start; }
+
+@media (max-width: 960px) {
+  .desktop-dl { grid-template-columns: 1fr; }
+}
+@media (max-width: 700px) {
+  .steps { grid-template-columns: 1fr; }
+}
