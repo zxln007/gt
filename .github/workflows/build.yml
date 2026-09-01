@@ -248,28 +248,55 @@ jobs:
           sudo apt-get update
           sudo apt-get install -y make g++ binutils gn ninja-build python3 python3-pip
 
+      # release assets are fetched by several jobs at once; the CDN throttles
+      # under that fan-out, so retry a few times before giving up
       - name: Resolve msquic prebuilt
         env:
           GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           GH_REPO: ${{ github.repository }}
         run: |-
-          mkdir -p /tmp/msquic-download
+          retry_gh_download() {
+            local pattern="$1" dest="$2" targetdir="$3" attempt
+            for attempt in 1 2 3 4; do
+              if gh release download "$MSQUIC_RELEASE_TAG" --pattern "$pattern" --dir "$dest" --clobber; then
+                mkdir -p "$targetdir"
+                tar -xzf "$dest/$pattern" -C "$targetdir"
+                return 0
+              fi
+              echo "download attempt $attempt failed; retrying in $((attempt * 15))s"
+              sleep $((attempt * 15))
+            done
+            return 1
+          }
           rm -rf core/prebuilt/msquic/x86_64-linux-gnu
-          if gh release download "$MSQUIC_RELEASE_TAG" --pattern "msquic-x86_64-linux-gnu.tar.gz" --dir /tmp/msquic-download --clobber; then
-            mkdir -p core/prebuilt/msquic/x86_64-linux-gnu
-            tar -xzf "/tmp/msquic-download/msquic-x86_64-linux-gnu.tar.gz" -C core/prebuilt/msquic/x86_64-linux-gnu
+          if retry_gh_download "msquic-x86_64-linux-gnu.tar.gz" /tmp/msquic-download core/prebuilt/msquic/x86_64-linux-gnu; then
+            :
           else
             echo "::error::Prebuilt msquic for x86_64-linux-gnu not found"
             exit 1
           fi
 
       - name: Resolve webrtc prebuilt
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
         run: |-
-          mkdir -p /tmp/webrtc-download
+          retry_gh_download() {
+            local pattern="$1" dest="$2" targetdir="$3" attempt
+            for attempt in 1 2 3 4; do
+              if gh release download "$WEBRTC_RELEASE_TAG" --pattern "$pattern" --dir "$dest" --clobber; then
+                mkdir -p "$targetdir"
+                tar -xzf "$dest/$pattern" -C "$targetdir"
+                return 0
+              fi
+              echo "download attempt $attempt failed; retrying in $((attempt * 15))s"
+              sleep $((attempt * 15))
+            done
+            return 1
+          }
           rm -rf core/prebuilt/webrtc/x86_64-linux-gnu
-          if gh release download "$WEBRTC_RELEASE_TAG" --pattern "webrtc-x86_64-linux-gnu.tar.gz" --dir /tmp/webrtc-download --clobber; then
-            mkdir -p core/prebuilt/webrtc/x86_64-linux-gnu
-            tar -xzf "/tmp/webrtc-download/webrtc-x86_64-linux-gnu.tar.gz" -C core/prebuilt/webrtc/x86_64-linux-gnu
+          if retry_gh_download "webrtc-x86_64-linux-gnu.tar.gz" /tmp/webrtc-download core/prebuilt/webrtc/x86_64-linux-gnu; then
+            :
           else
             echo "::error::Prebuilt webrtc for x86_64-linux-gnu not found"
             exit 1
