@@ -324,7 +324,7 @@ jobs:
       - name: Run core tests
         run: |-
           cd core
-          make test TESTFLAGS='-run "TestP2P|TestTCPForward" -v'
+          make test-prebuilt TESTFLAGS='-run "TestP2P|TestTCPForward" -v'
 
   docker:
     name: docker build and push
