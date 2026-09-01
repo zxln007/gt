@@ -308,7 +308,7 @@ jobs:
           export PATH=$PWD/depot_tools:$PATH
           cd core/dep/_google-webrtc
           gclient config --spec 'solutions = [ { "name": "src", "url": "https://webrtc.googlesource.com/src.git", "managed": False, "custom_deps": {}, }, ]'
-          revision=$(sed -n 's/.*"webrtc_commit": *"\([^"]*\)".*/\1/p' ../prebuilt/webrtc/x86_64-linux-gnu/metadata.json)
+          revision=$(sed -n 's/.*"webrtc_commit": *"\([^"]*\)".*/\1/p' ../../prebuilt/webrtc/x86_64-linux-gnu/metadata.json)
           echo "pinning webrtc headers to $revision"
           gclient sync --revision "src@$revision" --nohooks --no-history --shallow
           mkdir -p src/build/util
