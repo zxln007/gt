@@ -156,10 +156,19 @@ jobs:
             echo "Prebuilt webrtc not found; falling back to source build."
             echo "mode=build" >> "$GITHUB_OUTPUT"
           fi
+          # record the exact commit the prebuilt lib was built from, so the
+          # header checkout below can be pinned to it (HEAD-headers vs older
+          # lib skew silently breaks the native peer connection)
+          if [ -f "core/prebuilt/webrtc/${{ matrix.target }}/metadata.json" ]; then
+            revision=$(sed -n 's/.*"webrtc_commit": *"\([^"]*\)".*/\1/p' "core/prebuilt/webrtc/${{ matrix.target }}/metadata.json")
+            echo "revision=$revision" >> "$GITHUB_OUTPUT"
+          fi
 
       # cgo compiles the webrtc bindings against headers from the webrtc
       # checkout (plus abseil-cpp); the prebuilt archives ship only libs.
       - name: Sync WebRTC Dependencies
+        env:
+          WEBRTC_REVISION: ${{ steps.webrtc.outputs.revision }}
         shell: bash
         run: |-
           git clone --depth=1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
@@ -167,7 +176,11 @@ jobs:
           echo "$PWD/depot_tools" >> $GITHUB_PATH
           cd core/dep/_google-webrtc
           gclient config --spec 'solutions = [ { "name": "src", "url": "https://webrtc.googlesource.com/src.git", "managed": False, "custom_deps": {}, }, ]'
-          gclient sync --nohooks --no-history --shallow
+          if [ -n "$WEBRTC_REVISION" ]; then
+            gclient sync --revision "src@$WEBRTC_REVISION" --nohooks --no-history --shallow
+          else
+            gclient sync --nohooks --no-history --shallow
+          fi
           mkdir -p src/build/util
           echo "$(date +%s)" > src/build/util/LASTCHANGE.committime
           echo "LASTCHANGE=d0c0fbd3" > src/build/util/LASTCHANGE
@@ -212,6 +225,79 @@ jobs:
           name: gt-${{ matrix.binary_suffix }}
           path: |
             release/*
+
+  # Core integration tests on Linux (relay tunneling + WebRTC P2P signaling/
+  # forward). These never ran in CI before — the P2P gateway path had been
+  # silently broken. Scoped to the P2P suite first; widen once green.
+  test:
+    name: core tests (p2p, linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.25.10'
+          cache: false
+
+      - name: Install system build dependencies
+        run: |-
+          sudo apt-get update
+          sudo apt-get install -y make g++ binutils gn ninja-build python3 python3-pip
+
+      - name: Resolve msquic prebuilt
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |-
+          mkdir -p /tmp/msquic-download
+          rm -rf core/prebuilt/msquic/x86_64-linux-gnu
+          if gh release download "$MSQUIC_RELEASE_TAG" --pattern "msquic-x86_64-linux-gnu.tar.gz" --dir /tmp/msquic-download --clobber; then
+            mkdir -p core/prebuilt/msquic/x86_64-linux-gnu
+            tar -xzf "/tmp/msquic-download/msquic-x86_64-linux-gnu.tar.gz" -C core/prebuilt/msquic/x86_64-linux-gnu
+          else
+            echo "::error::Prebuilt msquic for x86_64-linux-gnu not found"
+            exit 1
+          fi
+
+      - name: Resolve webrtc prebuilt
+        run: |-
+          mkdir -p /tmp/webrtc-download
+          rm -rf core/prebuilt/webrtc/x86_64-linux-gnu
+          if gh release download "$WEBRTC_RELEASE_TAG" --pattern "webrtc-x86_64-linux-gnu.tar.gz" --dir /tmp/webrtc-download --clobber; then
+            mkdir -p core/prebuilt/webrtc/x86_64-linux-gnu
+            tar -xzf "/tmp/webrtc-download/webrtc-x86_64-linux-gnu.tar.gz" -C core/prebuilt/webrtc/x86_64-linux-gnu
+          else
+            echo "::error::Prebuilt webrtc for x86_64-linux-gnu not found"
+            exit 1
+          fi
+
+      - name: Sync WebRTC Dependencies (pinned to prebuilt lib commit)
+        run: |-
+          git clone --depth=1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
+          export PATH=$PWD/depot_tools:$PATH
+          cd core/dep/_google-webrtc
+          gclient config --spec 'solutions = [ { "name": "src", "url": "https://webrtc.googlesource.com/src.git", "managed": False, "custom_deps": {}, }, ]'
+          revision=$(sed -n 's/.*"webrtc_commit": *"\([^"]*\)".*/\1/p' ../prebuilt/webrtc/x86_64-linux-gnu/metadata.json)
+          echo "pinning webrtc headers to $revision"
+          gclient sync --revision "src@$revision" --nohooks --no-history --shallow
+          mkdir -p src/build/util
+          echo "$(date +%s)" > src/build/util/LASTCHANGE.committime
+          echo "LASTCHANGE=d0c0fbd3" > src/build/util/LASTCHANGE
+
+      # //go:embed dist/* needs at least one file; the tests don't serve the UI
+      - name: Placeholder web dist
+        run: |-
+          mkdir -p core/client/web/dist core/server/web/dist
+          echo "ci-placeholder" | tee core/client/web/dist/index.html core/server/web/dist/index.html >/dev/null
+
+      - name: Run core tests
+        run: |-
+          cd core
+          make test TESTFLAGS='-run "TestP2P|TestTCPForward" -v'
 
   docker:
     name: docker build and push

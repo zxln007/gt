@@ -300,6 +300,13 @@ ifeq ($(GOOS),windows)
 	python scripts/sort_go_pdata.py release/$(RUST_TARGET_DIR)/$(GO_OUT_FILE_NAME)
 endif
 
+# Core integration tests (relay tunneling, WebRTC P2P signaling/forward).
+# Requires the native libs: MSQUIC_MODE=prebuilt WEBRTC_MODE=prebuilt make test
+# TESTFLAGS passes through, e.g. TESTFLAGS='-run "TestP2P|TestTCPForward" -v'.
+.PHONY: test
+test:
+	go test ./test/... -timeout 900s $(TESTFLAGS)
+
 release_web_server: $(SOURCES_FRONT) Makefile check_npm front_release duplicate_dist_server
 release_web_client: $(SOURCES_FRONT) Makefile check_npm front_release duplicate_dist_client
 
