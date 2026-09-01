@@ -305,6 +305,8 @@ endif
 #   MSQUIC_MODE=prebuilt WEBRTC_MODE=prebuilt make test-prebuilt \
 #     TESTFLAGS='-run "TestP2P|TestTCPForward" -v'
 .PHONY: test-prebuilt
+test-prebuilt: MSQUIC_MODE=prebuilt
+test-prebuilt: WEBRTC_MODE=prebuilt
 test-prebuilt: prepare_msquic prepare_webrtc
 	$(eval CGO_LDFLAGS+=-L$(WEBRTC_PREBUILT_ROOT)/lib -L$(MSQUIC_PREBUILT_ROOT)/lib)
 ifneq ($(GOOS),windows)
