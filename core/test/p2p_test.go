@@ -329,13 +329,13 @@ func TestP2PSetOffer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	data := make([]byte, 4096)
-	_, err = resp.Body.Read(data[:dataLen])
+	answerBytes := make([]byte, dataLen)
+	_, err = io.ReadFull(resp.Body, answerBytes)
 	if err != nil {
 		t.Fatal(err)
 	}
-	t.Logf("XP sdp: %s", data[:dataLen])
-	err = json.Unmarshal(data[:dataLen], &answer)
+	t.Logf("XP sdp: %s", answerBytes)
+	err = json.Unmarshal(answerBytes, &answer)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -354,23 +354,24 @@ func TestP2PSetOffer(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		_, err = io.ReadFull(resp.Body, data[:dataLen])
+		msgBytes := make([]byte, dataLen)
+		_, err = io.ReadFull(resp.Body, msgBytes)
 		if err != nil {
 			t.Fatal(err)
 		}
 		var probe map[string]json.RawMessage
-		if json.Unmarshal(data[:dataLen], &probe) == nil {
+		if json.Unmarshal(msgBytes, &probe) == nil {
 			if _, ok := probe["id"]; ok {
-				err = json.Unmarshal(data[:dataLen], &peerID)
+				err = json.Unmarshal(msgBytes, &peerID)
 				if err != nil {
 					t.Fatal(err)
 				}
 				break
 			}
 		}
-		t.Logf("XP candidate: %s", data[:dataLen])
+		t.Logf("XP candidate: %s", msgBytes)
 		var candidate webrtc.ICECandidate
-		err = json.Unmarshal(data[:dataLen], &candidate)
+		err = json.Unmarshal(msgBytes, &candidate)
 		if err != nil {
 			t.Fatal(err)
 		}

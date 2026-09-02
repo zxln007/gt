@@ -487,6 +487,20 @@ func (pt *peerTask) renegotiate(body io.Reader, writer http.ResponseWriter) (err
 	return pt.answerOffer(&offer, writer, false)
 }
 
+// writeChunk 以 [2 字节大端长度][payload] 分帧写响应消息。信令响应里的
+// 所有消息（SDP、candidate、id）统一用该分帧,对端按帧解析。
+func (pt *peerTask) writeChunk(writer http.ResponseWriter, payload []byte) (err error) {
+	buf := pt.data
+	if len(payload)+2 > len(buf) {
+		buf = make([]byte, len(payload)+2)
+	}
+	n := uint16(len(payload))
+	l := copy(buf, []byte{byte(n >> 8), byte(n)})
+	l += copy(buf[l:], payload)
+	_, err = writer.Write(buf[:l])
+	return
+}
+
 // answerOffer 应用 offer 并回答 answer。initial 为 true 是首轮协商:
 // 初始化 PC、流式回送 ICE candidate,响应尾部附带 {"id":N} 供对端在后续
 // 重协商请求中路由到本 task。为 false 是既有 PC 上的重协商:ICE 传输与
@@ -518,14 +532,9 @@ func (pt *peerTask) answerOffer(offer *webrtc.SessionDescription, writer http.Re
 	}
 	if initial {
 		pt.response(writer, answerJSON)
-		_, err = writer.Write([]byte(fmt.Sprintf(`{"id":%d}`, pt.id)))
-		return
+		return pt.writeChunk(writer, []byte(fmt.Sprintf(`{"id":%d}`, pt.id)))
 	}
-	n := uint16(len(answerJSON))
-	l := copy(pt.data, []byte{byte(n >> 8), byte(n)})
-	l += copy(pt.data[l:], answerJSON)
-	_, err = writer.Write(pt.data[:l])
-	return
+	return pt.writeChunk(writer, answerJSON)
 }
 
 func (pt *peerTask) getOffer(_ *http.Request, writer http.ResponseWriter) {
@@ -583,7 +592,7 @@ func (pt *peerTask) getOffer(_ *http.Request, writer http.ResponseWriter) {
 		return
 	}
 	pt.response(writer, offerBytes)
-	_, err = writer.Write([]byte(fmt.Sprintf(`{"id":%d}`, pt.id)))
+	return pt.writeChunk(writer, []byte(fmt.Sprintf(`{"id":%d}`, pt.id)))
 }
 
 func (pt *peerTask) processAnswer(r *http.Request, writer http.ResponseWriter) {
