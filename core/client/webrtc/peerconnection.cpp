@@ -139,11 +139,35 @@ class PeerConnectionObserver : public webrtc::PeerConnectionObserver {
         } else {
             signalingThread = (webrtc::Thread *)signalingThreadOutside;
         }
+        // network/worker 线程同样必须兜底:2025 版 libwebrtc 的传输层任务
+        // (数据通道 OnTransportReady、DCEP 发送、SCTP 状态查询)都投递到
+        // network 线程,null 线程会让这些任务永久丢失——PC 表现为信令正常、
+        // ICE 可通,但连接后创建的数据通道永远停在 kConnecting。
+        if (networkThreadOutside == nullptr) {
+            ownedNetworkThread = webrtc::Thread::Create();
+            auto ok = ownedNetworkThread->Start();
+            if (!ok) {
+                return (char *)"networkThread start failed";
+            }
+            networkThread = ownedNetworkThread.get();
+        } else {
+            networkThread = (webrtc::Thread *)networkThreadOutside;
+        }
+        if (workerThreadOutside == nullptr) {
+            ownedWorkerThread = webrtc::Thread::Create();
+            auto ok = ownedWorkerThread->Start();
+            if (!ok) {
+                return (char *)"workerThread start failed";
+            }
+            workerThread = ownedWorkerThread.get();
+        } else {
+            workerThread = (webrtc::Thread *)workerThreadOutside;
+        }
 
         webrtc::PeerConnectionFactoryDependencies dependencies;
         dependencies.signaling_thread = signalingThread;
-        dependencies.network_thread = (webrtc::Thread *)networkThreadOutside;
-        dependencies.worker_thread = (webrtc::Thread *)workerThreadOutside;
+        dependencies.network_thread = networkThread;
+        dependencies.worker_thread = workerThread;
         auto peerConnectionFactory =
             webrtc::CreateModularPeerConnectionFactory(std::move(dependencies));
 
@@ -355,7 +379,11 @@ class PeerConnectionObserver : public webrtc::PeerConnectionObserver {
   private:
     webrtc::scoped_refptr<webrtc::PeerConnectionInterface> peerConnection;
     webrtc::Thread *signalingThread;
+    webrtc::Thread *networkThread;
+    webrtc::Thread *workerThread;
     std::unique_ptr<webrtc::Thread> ownedSignalingThread;
+    std::unique_ptr<webrtc::Thread> ownedNetworkThread;
+    std::unique_ptr<webrtc::Thread> ownedWorkerThread;
     webrtc::scoped_refptr<CreateOfferObserver> createOfferObserver;
     webrtc::scoped_refptr<CreateAnswerObserver> createAnswerObserver;
     void *userData;
