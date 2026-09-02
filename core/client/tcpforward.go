@@ -226,8 +226,7 @@ func (c *Client) createPeerConnection(dialer dialer) (peerConnection *webrtc.Pee
 		Uint64("bytesSent", dataChannelUnused.BytesSent()).
 		Uint64("bytesReceived", dataChannelUnused.BytesReceived()).
 		Uint64("bufferedAmount", dataChannelUnused.BufferedAmount()).
-		Msg("close data channel")
-	dataChannelUnused.Close()
+		Msg("tunnel data channel created (kept open: offer must carry the SCTP section)")
 
 	// 发送 offer
 	conn, err := dialer.dial()

@@ -109,7 +109,6 @@ func TestP2PGetOffer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-	dataChannelUnused.Close()
 
 	// 获取 offer
 	httpClient := setupHTTPClient(s.GetListenerAddrPort().String(), nil)
@@ -479,7 +478,6 @@ func initOffer(t *testing.T, addr string) (*webrtc.PeerConnection, context.Conte
 	if err != nil {
 		t.Fatal(err)
 	}
-	dataChannelUnused.Close()
 	ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second*30)
 	go func() {
 		var num uint16

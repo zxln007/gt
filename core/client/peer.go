@@ -443,8 +443,7 @@ func (pt *peerTask) getOffer(_ *http.Request, writer http.ResponseWriter) {
 		Uint64("bytesSent", dataChannelUnused.BytesSent()).
 		Uint64("bytesReceived", dataChannelUnused.BytesReceived()).
 		Uint64("bufferedAmount", dataChannelUnused.BufferedAmount()).
-		Msg("close data channel")
-	dataChannelUnused.Close()
+		Msg("tunnel data channel created (kept open: offer must carry the SCTP section)")
 
 	select {
 	case <-pt.waitNegotiationNeeded:
