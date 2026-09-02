@@ -253,7 +253,7 @@ class PeerConnectionObserver : public webrtc::PeerConnectionObserver {
             // 通道将永远等不到 open 回调。这里检测补发一次。
             if (dataChannelReleased->state() ==
                 webrtc::DataChannelInterface::DataState::kOpen) {
-                dataChannelObserver->OnStateChange();
+                dataChannelObserver->ReplayStateChange();
             }
         });
         return err;
