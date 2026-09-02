@@ -592,7 +592,7 @@ func (pt *peerTask) getOffer(_ *http.Request, writer http.ResponseWriter) {
 		return
 	}
 	pt.response(writer, offerBytes)
-	return pt.writeChunk(writer, []byte(fmt.Sprintf(`{"id":%d}`, pt.id)))
+	err = pt.writeChunk(writer, []byte(fmt.Sprintf(`{"id":%d}`, pt.id)))
 }
 
 func (pt *peerTask) processAnswer(r *http.Request, writer http.ResponseWriter) {
