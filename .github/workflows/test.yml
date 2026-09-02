@@ -1,0 +1,121 @@
+name: test
+
+# Core integration tests, kept separate from build.yml so pushes don't
+# trigger the full 6-platform build matrix. Currently scoped to the P2P
+# suite; widen to the full ./test package once green.
+
+on:
+  push:
+    branches: [ "dev", "master" ]
+  pull_request:
+    branches: [ "dev" ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  MSQUIC_RELEASE_TAG: msquic-prebuilt
+  WEBRTC_RELEASE_TAG: webrtc-prebuilt
+
+jobs:
+  # Core integration tests on Linux (relay tunneling + WebRTC P2P signaling/
+  # forward). These never ran in CI before — the P2P gateway path had been
+  # silently broken. Scoped to the P2P suite first; widen once green.
+  test:
+    name: core tests (p2p, linux)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Set up Go
+        uses: actions/setup-go@v4
+        with:
+          go-version: '1.25.10'
+          cache: false
+
+      - name: Install system build dependencies
+        run: |-
+          sudo apt-get update
+          sudo apt-get install -y make g++ binutils gn ninja-build python3 python3-pip
+
+      # release assets are fetched by several jobs at once; the CDN throttles
+      # under that fan-out, so retry a few times before giving up
+      - name: Resolve msquic prebuilt
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |-
+          retry_gh_download() {
+            local pattern="$1" dest="$2" targetdir="$3" attempt
+            for attempt in 1 2 3 4; do
+              if gh release download "$MSQUIC_RELEASE_TAG" --pattern "$pattern" --dir "$dest" --clobber; then
+                mkdir -p "$targetdir"
+                tar -xzf "$dest/$pattern" -C "$targetdir"
+                return 0
+              fi
+              echo "download attempt $attempt failed; retrying in $((attempt * 15))s"
+              sleep $((attempt * 15))
+            done
+            return 1
+          }
+          rm -rf core/prebuilt/msquic/x86_64-linux-gnu
+          if retry_gh_download "msquic-x86_64-linux-gnu.tar.gz" /tmp/msquic-download core/prebuilt/msquic/x86_64-linux-gnu; then
+            :
+          else
+            echo "::error::Prebuilt msquic for x86_64-linux-gnu not found"
+            exit 1
+          fi
+
+      - name: Resolve webrtc prebuilt
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_REPO: ${{ github.repository }}
+        run: |-
+          retry_gh_download() {
+            local pattern="$1" dest="$2" targetdir="$3" attempt
+            for attempt in 1 2 3 4; do
+              if gh release download "$WEBRTC_RELEASE_TAG" --pattern "$pattern" --dir "$dest" --clobber; then
+                mkdir -p "$targetdir"
+                tar -xzf "$dest/$pattern" -C "$targetdir"
+                return 0
+              fi
+              echo "download attempt $attempt failed; retrying in $((attempt * 15))s"
+              sleep $((attempt * 15))
+            done
+            return 1
+          }
+          rm -rf core/prebuilt/webrtc/x86_64-linux-gnu
+          if retry_gh_download "webrtc-x86_64-linux-gnu.tar.gz" /tmp/webrtc-download core/prebuilt/webrtc/x86_64-linux-gnu; then
+            :
+          else
+            echo "::error::Prebuilt webrtc for x86_64-linux-gnu not found"
+            exit 1
+          fi
+
+      - name: Sync WebRTC Dependencies (pinned to prebuilt lib commit)
+        run: |-
+          git clone --depth=1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
+          export PATH=$PWD/depot_tools:$PATH
+          cd core/dep/_google-webrtc
+          gclient config --spec 'solutions = [ { "name": "src", "url": "https://webrtc.googlesource.com/src.git", "managed": False, "custom_deps": {}, }, ]'
+          revision=$(sed -n 's/.*"webrtc_commit": *"\([^"]*\)".*/\1/p' ../../prebuilt/webrtc/x86_64-linux-gnu/metadata.json)
+          echo "pinning webrtc headers to $revision"
+          gclient sync --revision "src@$revision" --nohooks --no-history --shallow
+          mkdir -p src/build/util
+          echo "$(date +%s)" > src/build/util/LASTCHANGE.committime
+          echo "LASTCHANGE=d0c0fbd3" > src/build/util/LASTCHANGE
+
+      # //go:embed dist/* needs at least one file; the tests don't serve the UI
+      - name: Placeholder web dist
+        run: |-
+          mkdir -p core/client/web/dist core/server/web/dist
+          echo "ci-placeholder" | tee core/client/web/dist/index.html core/server/web/dist/index.html >/dev/null
+
+      - name: Run core tests
+        run: |-
+          cd core
+          make test-prebuilt TESTFLAGS='-run "TestP2P|TestTCPForward" -v'
+

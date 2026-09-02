@@ -300,19 +300,22 @@ ifeq ($(GOOS),windows)
 	python scripts/sort_go_pdata.py release/$(RUST_TARGET_DIR)/$(GO_OUT_FILE_NAME)
 endif
 
-# Core integration tests against the downloaded prebuilt libs — no webrtc
-# source build required (CI-friendly). TESTFLAGS passes through, e.g.:
-#   MSQUIC_MODE=prebuilt WEBRTC_MODE=prebuilt make test-prebuilt \
-#     TESTFLAGS='-run "TestP2P|TestTCPForward" -v'
+# Core integration tests against the downloaded prebuilt libs. Fully
+# self-contained: no webrtc/msquic source build, no submodule patching.
+# Requires: prebuilt libs extracted under prebuilt/{msquic,webrtc}/$(TARGET)
+# and the webrtc headers synced into dep/_google-webrtc/src (pinned to the
+# lib's commit — HEAD headers vs older lib silently break the native peer
+# connection). TESTFLAGS passes through, e.g.:
+#   make test-prebuilt TESTFLAGS='-run "TestP2P|TestTCPForward" -v'
 .PHONY: test-prebuilt
-test-prebuilt: MSQUIC_MODE=prebuilt
-test-prebuilt: WEBRTC_MODE=prebuilt
-test-prebuilt: prepare_msquic prepare_webrtc
-	$(eval CGO_LDFLAGS+=-L$(WEBRTC_PREBUILT_ROOT)/lib -L$(MSQUIC_PREBUILT_ROOT)/lib)
+test-prebuilt:
 ifneq ($(GOOS),windows)
-	$(eval CGO_LDFLAGS+=-lwebrtc.a -lmsquic.a -lstdc++)
+	$(eval CGO_CXXFLAGS=-I$(PWD)/dep/_google-webrtc/src -I$(PWD)/dep/_google-webrtc/src/third_party/abseil-cpp -I$(PWD)/dep/_msquic/src/inc -std=c++20 -DWEBRTC_POSIX -DQUIC_API_ENABLE_PREVIEW_FEATURES)
+	$(eval CGO_LDFLAGS=-L$(PWD)/prebuilt/webrtc/$(TARGET)/lib -L$(PWD)/prebuilt/msquic/$(TARGET)/lib -ldl -pthread -lwebrtc.a -lmsquic.a -lstdc++)
 else
-	$(eval CGO_LDFLAGS+=-lwebrtc.lib -lmsquic.lib)
+	$(eval CGO_CXXFLAGS=-I$(PWD)/dep/_google-webrtc/src -I$(PWD)/dep/_google-webrtc/src/third_party/abseil-cpp -I$(PWD)/dep/_msquic/src/inc -std=c++20 -DWEBRTC_WIN -DQUIC_API_ENABLE_PREVIEW_FEATURES -DNOMINMAX)
+	$(eval CGO_CFLAGS=-DWEBRTC_WIN -DNOMINMAX -DWIN32_LEAN_AND_MEAN -D_WINSOCKAPI_)
+	$(eval CGO_LDFLAGS=-L$(PWD)/prebuilt/webrtc/$(TARGET)/lib -L$(PWD)/prebuilt/msquic/$(TARGET)/lib -lwebrtc.lib -lmsquic.lib)
 endif
 	go test ./test/... -count 1 -timeout 900s $(TESTFLAGS)
 
