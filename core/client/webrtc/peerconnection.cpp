@@ -21,6 +21,7 @@
 #include <api/peer_connection_interface.h>
 #include <api/scoped_refptr.h>
 #include <api/make_ref_counted.h>
+#include <rtc_base/logging.h>
 #include <rtc_base/thread.h>
 
 #include "datachannel.hpp"
@@ -176,6 +177,23 @@ class PeerConnectionObserver : public webrtc::PeerConnectionObserver {
             return (char *)buf;
         }
         peerConnection = peerConnectionOrError.MoveValue();
+
+        // P2P-PROBE (temporary): the 2025 refactor of ConnectionContext posts
+        // DisallowBlockingCalls/DisallowAllInvokes onto a separate network
+        // thread after construction; if transport setup then relies on
+        // blocking invokes, ICE gathering silently never starts. These
+        // probes show whether the threads pump at all.
+        RTC_LOG(LS_INFO) << "P2P-PROBE: peer connection created";
+        if (signalingThread) {
+            signalingThread->PostTask(
+                [] { RTC_LOG(LS_INFO) << "P2P-PROBE: signaling thread pumping"; });
+        }
+        if (networkThreadOutside) {
+            static_cast<webrtc::Thread *>(networkThreadOutside)->PostTask(
+                [] { RTC_LOG(LS_INFO) << "P2P-PROBE: network thread pumping"; });
+        } else {
+            RTC_LOG(LS_INFO) << "P2P-PROBE: no external network thread";
+        }
 
         return nullptr;
     }
