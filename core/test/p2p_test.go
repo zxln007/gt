@@ -294,7 +294,11 @@ func TestP2PSetOffer(t *testing.T) {
 
 	httpClient := setupHTTPClient(s.GetListenerAddrPort().String(), nil)
 
-	pc, offer := initOffer(t, s.GetSTUNListenerAddrPort().String())
+	// 访客 PC 与产品网关一致使用线程池线程(生产路径 client.go 无条件创建;
+	// 裸 nil 线程的兜底通路不具备 socket 分发能力,ICE 无法连通)
+	threadPool := webrtc.NewThreadPool(3)
+	defer threadPool.Close()
+	pc, offer := initOffer(t, s.GetSTUNListenerAddrPort().String(), threadPool)
 
 	req, err := http.NewRequest("XP", "http://abc.p2p.com/test", nil)
 	if err != nil {
@@ -497,7 +501,7 @@ func TestP2PSetOffer(t *testing.T) {
 	s.Shutdown()
 }
 
-func initOffer(t *testing.T, addr string) (*webrtc.PeerConnection, *webrtc.SessionDescription) {
+func initOffer(t *testing.T, addr string, threadPool *webrtc.ThreadPool) (*webrtc.PeerConnection, *webrtc.SessionDescription) {
 	waitNegotiationNeeded := make(chan struct{})
 	var peerConnection *webrtc.PeerConnection
 	candidateDoneChan := make(chan struct{})
@@ -532,7 +536,7 @@ func initOffer(t *testing.T, addr string) (*webrtc.PeerConnection, *webrtc.Sessi
 		},
 	}
 	var err error
-	err = webrtc.NewPeerConnection(&config, &peerConnection, nil, nil, nil)
+	err = webrtc.NewPeerConnection(&config, &peerConnection, threadPool.GetThread(), threadPool.GetSocketThread(), threadPool.GetThread(), nil)
 	if err != nil {
 		t.Fatal(err)
 	}
