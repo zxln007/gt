@@ -368,6 +368,40 @@ func (pt *peerProcessTask) response(writer http.ResponseWriter, sdp []byte) {
 }
 
 func (pt *peerProcessTask) processOffer(r *http.Request, writer http.ResponseWriter) {
+	var err error
+	var shouldClose bool
+	defer func() {
+		if err != nil {
+			writer.WriteHeader(http.StatusBadRequest)
+		}
+		pt.Logger.Info().Err(err).Msg("processOffer done")
+		if shouldClose {
+			pt.CloseWithLock()
+		}
+	}()
+	// 重协商请求（WebRTC-OP-ID 指向既有 task）需要子进程支持连续 offer,
+	// sub-p2p 子进程（Rust 实现）尚不支持,显式拒绝以免被误当首轮协商
+	idValue := r.Header.Get("WebRTC-OP-ID")
+	if idValue != "" {
+		id, parseErr := strconv.ParseUint(idValue, 10, 32)
+		if parseErr != nil {
+			err = parseErr
+			return
+		}
+		if uint32(id) != pt.id {
+			shouldClose = true
+			client := pt.tunnel.client
+			client.peersRWMtx.RLock()
+			_, ok := client.peers[uint32(id)]
+			client.peersRWMtx.RUnlock()
+			if ok {
+				err = errors.New("renegotiation is not supported for peer process task")
+			} else {
+				err = errors.New("invalid task id")
+			}
+			return
+		}
+	}
 	pt.process(r.Body, writer, func() (err error) {
 		err = pt.init()
 		if err != nil {

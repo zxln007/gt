@@ -15,9 +15,7 @@
 package test
 
 import (
-	"bufio"
 	"bytes"
-	"context"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -26,7 +24,6 @@ import (
 	"net"
 	"net/http"
 	"strconv"
-	"sync"
 	"testing"
 	"time"
 
@@ -142,28 +139,34 @@ func TestP2PGetOffer(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	// 获取 candidate
-	bufReader := bufio.NewReader(resp.Body)
+	// 获取 candidate 与 peer task id（响应尾部 {"id":N}）
+	var id struct {
+		ID uint32
+	}
 	for {
-		candidateLen, err := bufReader.Peek(2)
+		var msgLen uint16
+		err = binary.Read(resp.Body, binary.BigEndian, &msgLen)
 		if err != nil {
 			t.Fatal(err)
 		}
-		if bytes.Equal(candidateLen, []byte("{\"")) {
-			break
-		}
-		_, err = bufReader.Discard(2)
+		msg := make([]byte, msgLen)
+		_, err = io.ReadFull(resp.Body, msg)
 		if err != nil {
 			t.Fatal(err)
 		}
-		candidateBytes := make([]byte, uint16(candidateLen[0])<<8|uint16(candidateLen[1]))
-		_, err = io.ReadFull(bufReader, candidateBytes)
-		if err != nil {
-			t.Fatal(err)
+		var probe map[string]json.RawMessage
+		if json.Unmarshal(msg, &probe) == nil {
+			if _, ok := probe["id"]; ok {
+				err = json.Unmarshal(msg, &id)
+				if err != nil {
+					t.Fatal(err)
+				}
+				break
+			}
 		}
-		t.Logf("get candidate: %s", string(candidateBytes))
+		t.Logf("get candidate: %s", string(msg))
 		var candidate webrtc.ICECandidate
-		err = json.Unmarshal(candidateBytes, &candidate)
+		err = json.Unmarshal(msg, &candidate)
 		if err != nil {
 			t.Fatal(err)
 		}
@@ -171,19 +174,6 @@ func TestP2PGetOffer(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-	}
-
-	// 获取 id
-	var id struct {
-		ID uint32
-	}
-	idBytes, err := io.ReadAll(bufReader)
-	if err != nil {
-		t.Fatal(err)
-	}
-	err = json.Unmarshal(idBytes, &id)
-	if err != nil {
-		t.Fatal(err)
 	}
 	t.Logf("get id: %d", id.ID)
 	err = resp.Body.Close()
@@ -294,7 +284,8 @@ func TestP2PSetOffer(t *testing.T) {
 		"-local", fmt.Sprintf("http://%s", httpListener.Addr().String()),
 		"-remote", s.GetListenerAddrPort().String(),
 		"-remoteSTUN", "stun:" + s.GetSTUNListenerAddrPort().String(),
-		"-logLevel", "trace",
+		"-logLevel", "debug",
+		"-webrtcThreadMode",
 	}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -303,7 +294,7 @@ func TestP2PSetOffer(t *testing.T) {
 
 	httpClient := setupHTTPClient(s.GetListenerAddrPort().String(), nil)
 
-	pc, ctx, offer := initOffer(t, s.GetSTUNListenerAddrPort().String())
+	pc, offer := initOffer(t, s.GetSTUNListenerAddrPort().String())
 
 	req, err := http.NewRequest("XP", "http://abc.p2p.com/test", nil)
 	if err != nil {
@@ -354,20 +345,28 @@ func TestP2PSetOffer(t *testing.T) {
 		t.Fatal(err)
 	}
 
+	// 获取 candidate 与 peer task id（响应尾部 {"id":N}）,后续重协商请求靠 id 路由
+	var peerID struct {
+		ID uint32
+	}
 	for {
 		err = binary.Read(resp.Body, binary.BigEndian, &dataLen)
 		if err != nil {
-			if err == io.EOF {
-				break
-			}
 			t.Fatal(err)
 		}
 		_, err = io.ReadFull(resp.Body, data[:dataLen])
 		if err != nil {
-			if err == io.EOF {
+			t.Fatal(err)
+		}
+		var probe map[string]json.RawMessage
+		if json.Unmarshal(data[:dataLen], &probe) == nil {
+			if _, ok := probe["id"]; ok {
+				err = json.Unmarshal(data[:dataLen], &peerID)
+				if err != nil {
+					t.Fatal(err)
+				}
 				break
 			}
-			t.Fatal(err)
 		}
 		t.Logf("XP candidate: %s", data[:dataLen])
 		var candidate webrtc.ICECandidate
@@ -381,15 +380,126 @@ func TestP2PSetOffer(t *testing.T) {
 		}
 	}
 
-	<-ctx.Done()
-	if ctx.Err() != context.Canceled {
-		t.Fatal("invalid context")
+	// 重协商:连接建立后创建的 in-band 通道必须经重新协商进入 SDP 才会 open
+	renegotiate := func() {
+		renegOffer, err := pc.CreateOffer()
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = pc.SetLocalDescription(renegOffer)
+		if err != nil {
+			t.Fatal(err)
+		}
+		renegSDP, err := json.Marshal(pc.GetLocalDescription())
+		if err != nil {
+			t.Fatal(err)
+		}
+		renegRaw := &bytes.Buffer{}
+		w := std.NewChunkedWriter(renegRaw)
+		_, err = w.Write(append([]byte{byte(len(renegSDP) >> 8), byte(len(renegSDP))}, renegSDP...))
+		if err != nil {
+			t.Fatal(err)
+		}
+		renegReq, err := http.NewRequest("XP", "http://abc.p2p.com/test", nil)
+		if err != nil {
+			t.Fatal(err)
+		}
+		renegReq.Header.Set("WebRTC-OP-ID", strconv.FormatUint(uint64(peerID.ID), 10))
+		renegReq.Body = io.NopCloser(renegRaw)
+		renegReq.ContentLength = -1
+		renegResp, err := httpClient.Do(renegReq)
+		if err != nil {
+			t.Fatal(err)
+		}
+		defer renegResp.Body.Close()
+		if renegResp.StatusCode != http.StatusOK {
+			t.Fatal("invalid renegotiation status code")
+		}
+		var answerLen uint16
+		err = binary.Read(renegResp.Body, binary.BigEndian, &answerLen)
+		if err != nil {
+			t.Fatal(err)
+		}
+		answerBytes := make([]byte, answerLen)
+		_, err = io.ReadFull(renegResp.Body, answerBytes)
+		if err != nil {
+			t.Fatal(err)
+		}
+		var renegAnswer webrtc.SessionDescription
+		err = json.Unmarshal(answerBytes, &renegAnswer)
+		if err != nil {
+			t.Fatal(err)
+		}
+		err = pc.SetRemoteDescription(&renegAnswer)
+		if err != nil {
+			t.Fatal(err)
+		}
+	}
+
+	for i := 0; i < 10; i++ {
+		var dataChannel *webrtc.DataChannel
+		stateChange := make(chan webrtc.DataState, 8)
+		messages := make(chan []byte, 64)
+		config := webrtc.DataChannelConfig{
+			OnStateChange: func(state webrtc.DataState) {
+				select {
+				case stateChange <- state:
+				default:
+				}
+				if state == webrtc.DataStateOpen {
+					if !dataChannel.Send([]byte("GET / HTTP/1.1\r\nHost: abc.p2p.com\r\n\r\n")) {
+						panic("failed to send message with data channel")
+					}
+				}
+			},
+			OnMessage: func(message []byte) {
+				select {
+				case messages <- message:
+				default:
+				}
+			},
+		}
+		err = pc.CreateDataChannelWithID(fmt.Sprintf("test%d", i), 0, false, true, &config, &dataChannel)
+		if err != nil {
+			t.Fatal(err)
+		}
+		renegotiate()
+		deadline := time.After(30 * time.Second)
+	openWait:
+		for {
+			select {
+			case state := <-stateChange:
+				if state == webrtc.DataStateOpen {
+					break openWait
+				}
+			case <-deadline:
+				t.Fatal("data channel is not open after renegotiation")
+			}
+		}
+		var respBuf []byte
+	bodyWait:
+		for {
+			select {
+			case msg := <-messages:
+				respBuf = append(respBuf, msg...)
+				if bytes.Contains(respBuf, []byte("ok")) {
+					break bodyWait
+				}
+			case <-deadline:
+				t.Fatalf("no response over data channel: %s", string(respBuf))
+			}
+		}
+		t.Logf("channel %d received: %s", i, string(respBuf))
+		err = dataChannel.Close()
+		if err != nil {
+			t.Fatal(err)
+		}
 	}
 	t.Log("XP done")
 	s.Shutdown()
 }
 
-func initOffer(t *testing.T, addr string) (*webrtc.PeerConnection, context.Context, *webrtc.SessionDescription) {
+func initOffer(t *testing.T, addr string) (*webrtc.PeerConnection, *webrtc.SessionDescription) {
 	waitNegotiationNeeded := make(chan struct{})
 	var peerConnection *webrtc.PeerConnection
 	candidateDoneChan := make(chan struct{})
@@ -434,60 +544,6 @@ func initOffer(t *testing.T, addr string) (*webrtc.PeerConnection, context.Conte
 	if err != nil {
 		t.Fatal(err)
 	}
-	ctx, cancelFunc := context.WithTimeout(context.Background(), time.Second*30)
-	go func() {
-		var num uint16
-		var wg sync.WaitGroup
-		wg.Add(10)
-		for i := 0; i < 10; i++ {
-			num++
-			time.Sleep(time.Second)
-			var dataChannel *webrtc.DataChannel
-			reader, writer := io.Pipe()
-			config := webrtc.DataChannelConfig{
-				OnStateChange: func(state webrtc.DataState) {
-					fmt.Println("data channel", state.String())
-					if state == webrtc.DataStateOpen {
-						if !dataChannel.Send([]byte("GET / HTTP/1.1\r\nHost: abc.p2p.com\r\n\r\n")) {
-							panic("failed to send message with data channel")
-						}
-					}
-				},
-				OnMessage: func(message []byte) {
-					fmt.Printf("Message from DataChannel %s payload %s\n", dataChannel.Label, string(message))
-					_, err := writer.Write(message)
-					if err != nil {
-						panic(err)
-					}
-				},
-			}
-			err = peerConnection.CreateDataChannel(fmt.Sprintf("test%d", num), false, &config, &dataChannel)
-			if err != nil {
-				panic(err)
-			}
-			go func() {
-				resp, err := http.ReadResponse(bufio.NewReader(reader), nil)
-				if err != nil {
-					panic(err)
-				}
-				defer resp.Body.Close()
-				if resp.StatusCode != http.StatusOK {
-					panic("invalid http status")
-				}
-				data, err := io.ReadAll(resp.Body)
-				if err != nil {
-					panic(err)
-				}
-				if string(data) != "ok" {
-					panic("resp body != ok")
-				}
-				fmt.Println("sendChannel has received ok")
-				wg.Done()
-			}()
-		}
-		wg.Wait()
-		cancelFunc()
-	}()
 
 	<-waitNegotiationNeeded
 	offer, err := peerConnection.CreateOffer()
@@ -500,7 +556,7 @@ func initOffer(t *testing.T, addr string) (*webrtc.PeerConnection, context.Conte
 	}
 	<-candidateDoneChan
 
-	return peerConnection, ctx, peerConnection.GetLocalDescription()
+	return peerConnection, peerConnection.GetLocalDescription()
 }
 
 func TestTCPForward(t *testing.T) {
