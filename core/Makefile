@@ -311,11 +311,11 @@ endif
 test-prebuilt:
 ifneq ($(GOOS),windows)
 	$(eval CGO_CXXFLAGS=-I$(PWD)/dep/_google-webrtc/src -I$(PWD)/dep/_google-webrtc/src/third_party/abseil-cpp -I$(PWD)/dep/_msquic/src/inc -std=c++20 -DWEBRTC_POSIX -DQUIC_API_ENABLE_PREVIEW_FEATURES)
-	$(eval CGO_LDFLAGS=-L$(PWD)/prebuilt/webrtc/$(TARGET)/lib -L$(PWD)/prebuilt/msquic/$(TARGET)/lib -ldl -pthread -l:webrtc.a -l:msquic.a -lstdc++)
+	$(eval CGO_LDFLAGS=-L$(PWD)/prebuilt/webrtc/$(TARGET)/lib -L$(PWD)/prebuilt/msquic/$(TARGET)/lib -ldl -pthread -lstdc++ $(WEBRTC_PREBUILT_ROOT)/lib/$(WEBRTC_ARTIFACT_LIB_NAME) $(MSQUIC_PREBUILT_ROOT)/lib/$(MSQUIC_ARTIFACT_LIB_NAME))
 else
 	$(eval CGO_CXXFLAGS=-I$(PWD)/dep/_google-webrtc/src -I$(PWD)/dep/_google-webrtc/src/third_party/abseil-cpp -I$(PWD)/dep/_msquic/src/inc -std=c++20 -DWEBRTC_WIN -DQUIC_API_ENABLE_PREVIEW_FEATURES -DNOMINMAX)
 	$(eval CGO_CFLAGS=-DWEBRTC_WIN -DNOMINMAX -DWIN32_LEAN_AND_MEAN -D_WINSOCKAPI_)
-	$(eval CGO_LDFLAGS=-L$(PWD)/prebuilt/webrtc/$(TARGET)/lib -L$(PWD)/prebuilt/msquic/$(TARGET)/lib $(PWD)/prebuilt/webrtc/$(TARGET)/lib/webrtc.lib $(PWD)/prebuilt/msquic/$(TARGET)/lib/msquic.lib)
+	$(eval CGO_LDFLAGS=-L$(PWD)/prebuilt/webrtc/$(TARGET)/lib -L$(PWD)/prebuilt/msquic/$(TARGET)/lib $(PWD)/prebuilt/webrtc/$(TARGET)/lib/$(WEBRTC_ARTIFACT_LIB_NAME) $(PWD)/prebuilt/msquic/$(TARGET)/lib/$(MSQUIC_ARTIFACT_LIB_NAME))
 endif
 	go test ./test/... -count 1 -timeout 900s $(TESTFLAGS)
 
