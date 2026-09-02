@@ -163,6 +163,7 @@ func (pt *peerTask) init(c *conn) (err error) {
 		if err = pt.conn.CreateDataChannelWithID("p2p", webrtcChannelIDBase+i, true, false, &channelConfig, &dataChannel); err != nil {
 			return
 		}
+		observer.dataChannel = dataChannel
 	}
 	return
 }
