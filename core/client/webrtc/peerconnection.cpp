@@ -247,6 +247,14 @@ class PeerConnectionObserver : public webrtc::PeerConnectionObserver {
                 new ::DataChannelObserver(dataChannelReleased, dataChannelUserData);
             *dataChannelOutside = (void *)dataChannelObserver;
             dataChannelReleased->RegisterObserver(dataChannelObserver);
+            // RegisterObserver 被异步投递到 network 线程执行;若通道创建时
+            // transport 已就绪,OnTransportReady 会立即触发 kOpen 并发出
+            // DCEP,该 open 状态变化发生在注册生效前会被吞掉——本地创建的
+            // 通道将永远等不到 open 回调。这里检测补发一次。
+            if (dataChannelReleased->state() ==
+                webrtc::DataChannelInterface::DataState::kOpen) {
+                dataChannelObserver->OnStateChange();
+            }
         });
         return err;
     }
