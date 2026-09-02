@@ -1,8 +1,8 @@
 name: test
 
 # Core integration tests, kept separate from build.yml so pushes don't
-# trigger the full 6-platform build matrix. Currently scoped to the P2P
-# suite; widen to the full ./test package once green.
+# trigger the full 6-platform build matrix. Runs the full ./test package
+# (relay tunneling + WebRTC P2P signaling/forward/renegotiation).
 
 on:
   push:
@@ -23,7 +23,7 @@ jobs:
   # forward). These never ran in CI before — the P2P gateway path had been
   # silently broken. Scoped to the P2P suite first; widen once green.
   test:
-    name: core tests (p2p, linux)
+    name: core tests (linux)
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
@@ -117,5 +117,5 @@ jobs:
       - name: Run core tests
         run: |-
           cd core
-          make test-prebuilt TESTFLAGS='-run "TestP2P|TestTCPForward" -timeout 240s -v'
+          make test-prebuilt TESTFLAGS='-timeout 900s -v'
 

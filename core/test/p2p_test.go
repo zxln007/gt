@@ -59,8 +59,6 @@ func TestP2PGetOffer(t *testing.T) {
 		"-local", fmt.Sprintf("http://%s", httpEchoServerAddr),
 		"-remote", s.GetListenerAddrPort().String(),
 		"-remoteSTUN", "stun:" + s.GetSTUNListenerAddrPort().String(),
-		"-logLevel", "debug",
-		"-webrtcLogLevel", "verbose",
 		"-webrtcThreadMode",
 	}, nil)
 	if err != nil {
