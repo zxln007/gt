@@ -291,6 +291,8 @@ func TestP2PSetOffer(t *testing.T) {
 	defer c.Close()
 
 	httpClient := setupHTTPClient(s.GetListenerAddrPort().String(), nil)
+	// 全量并行测试环境下信令请求可能被拖住,给出硬超时把挂死转成快速失败
+	httpClient.Timeout = 20 * time.Second
 
 	// 访客 PC 与产品网关一致使用线程池线程(生产路径 client.go 无条件创建;
 	// 裸 nil 线程的兜底通路不具备 socket 分发能力,ICE 无法连通)
