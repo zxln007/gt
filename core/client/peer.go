@@ -58,6 +58,8 @@ type peerTask struct {
 	// negotiationMtx 串行化同一 PC 上的 SDP 操作:初始 offer/answer 与后续
 	// 重协商的 offer/answer 都要求信令状态机处于稳定态,并发到达会互相踩踏
 	negotiationMtx sync.Mutex
+	// skipPeersRegistration 撞号的信令 shell 不占用 peers 表(见 newPeerTask)
+	skipPeersRegistration bool
 }
 
 func (pt *peerTask) APIConn() *api.Conn {
@@ -164,7 +166,9 @@ func (pt *peerTask) Close() {
 	defer pool.BytesPool.Put(pt.data)
 	close(pt.closeChan)
 	client := pt.tunnel.client
-	delete(client.peers, pt.id)
+	if !pt.skipPeersRegistration {
+		delete(client.peers, pt.id)
+	}
 	if pt.conn != nil {
 		pt.conn.Close()
 	}
@@ -182,7 +186,9 @@ func (pt *peerTask) CloseWithLock() {
 	close(pt.closeChan)
 	client := pt.tunnel.client
 	client.peersRWMtx.Lock()
-	delete(client.peers, pt.id)
+	if !pt.skipPeersRegistration {
+		delete(client.peers, pt.id)
+	}
 	client.peersRWMtx.Unlock()
 	if pt.conn != nil {
 		pt.conn.Close()
@@ -419,21 +425,24 @@ func (pt *peerTask) processOffer(r *http.Request, writer http.ResponseWriter) {
 			err = parseErr
 			return
 		}
-		if uint32(id) != pt.id {
+		client := pt.tunnel.client
+		client.peersRWMtx.RLock()
+		et, ok := client.peers[uint32(id)]
+		client.peersRWMtx.RUnlock()
+		if !ok {
+			err = errors.New("invalid task id")
+			return
+		}
+		existing, ok := et.(*peerTask)
+		if !ok {
+			err = errors.New("renegotiation is not supported for peer process task")
+			return
+		}
+		// 多 tunnel 并存时各 tunnel 的 taskIDSeed 独立计数,本请求的 shell
+		// 可能与既有 peer task 同号。只要 header 指向的 task 存在且不是
+		// shell 自身就路由过去,不能仅凭 id 相等判定为首轮协商。
+		if existing != pt {
 			shouldClose = true
-			client := pt.tunnel.client
-			client.peersRWMtx.RLock()
-			et, ok := client.peers[uint32(id)]
-			client.peersRWMtx.RUnlock()
-			if !ok {
-				err = errors.New("invalid task id")
-				return
-			}
-			existing, ok := et.(*peerTask)
-			if !ok {
-				err = errors.New("renegotiation is not supported for peer process task")
-				return
-			}
 			task = existing
 		}
 	}
@@ -610,21 +619,28 @@ func (pt *peerTask) processAnswer(r *http.Request, writer http.ResponseWriter) {
 	}()
 	task := pt
 	idValue := r.Header.Get("WebRTC-OP-ID")
-	id, err := strconv.ParseUint(idValue, 10, 32)
-	if err != nil {
+	id, parseErr := strconv.ParseUint(idValue, 10, 32)
+	if parseErr != nil {
+		err = parseErr
 		return
 	}
-	if uint32(id) != pt.id {
+	client := c.client
+	client.peersRWMtx.RLock()
+	et, ok := client.peers[uint32(id)]
+	client.peersRWMtx.RUnlock()
+	if !ok {
+		err = errors.New("invalid task id")
+		return
+	}
+	existing, ok := et.(*peerTask)
+	if !ok {
+		err = errors.New("invalid task id type")
+		return
+	}
+	// 同 processOffer:撞号时 header 指向的既有 task 优先于 shell 自身
+	if existing != pt {
 		shouldClose = true
-		client := c.client
-		client.peersRWMtx.RLock()
-		pt, ok := client.peers[uint32(id)]
-		client.peersRWMtx.RUnlock()
-		if !ok {
-			err = errors.New("invalid task id")
-			return
-		}
-		task = pt.(*peerTask)
+		task = existing
 	}
 	task.process(r.Body, writer, func() (err error) {
 		var answer webrtc.SessionDescription

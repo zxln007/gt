@@ -51,6 +51,8 @@ type peerProcessTask struct {
 	stdout   io.ReadCloser
 	stdin    io.WriteCloser
 	stderr   io.ReadCloser
+	// skipPeersRegistration 撞号的信令 shell 不占用 peers 表(见 newPeerTask)
+	skipPeersRegistration bool
 }
 
 type op struct {
@@ -182,7 +184,9 @@ func (pt *peerProcessTask) Close() {
 	}
 	defer pool.BytesPool.Put(pt.data)
 	client := pt.tunnel.client
-	delete(client.peers, pt.id)
+	if !pt.skipPeersRegistration {
+		delete(client.peers, pt.id)
+	}
 	if pt.timer != nil {
 		pt.timer.Stop()
 	}
@@ -200,7 +204,9 @@ func (pt *peerProcessTask) CloseWithLock() {
 	defer pool.BytesPool.Put(pt.data)
 	client := pt.tunnel.client
 	client.peersRWMtx.Lock()
-	delete(client.peers, pt.id)
+	if !pt.skipPeersRegistration {
+		delete(client.peers, pt.id)
+	}
 	client.peersRWMtx.Unlock()
 	if pt.timer != nil {
 		pt.timer.Stop()
@@ -219,7 +225,9 @@ func (pt *peerProcessTask) closeWithLock() {
 	defer pool.BytesPool.Put(pt.data)
 	client := pt.tunnel.client
 	client.peersRWMtx.Lock()
-	delete(client.peers, pt.id)
+	if !pt.skipPeersRegistration {
+		delete(client.peers, pt.id)
+	}
 	client.peersRWMtx.Unlock()
 	if pt.timer != nil {
 		pt.timer.Stop()

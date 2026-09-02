@@ -561,11 +561,14 @@ func (c *conn) newPeerProcTask(id uint32) (t *peerProcessTask, ok bool) {
 
 	ot, ok := c.client.peers[id]
 	if ok && ot != nil {
-		ot.CloseWithLock()
-		c.Logger.Info().
-			Uint32("peerTask", id).Msg("got closed because task with same id is received")
+		// 多条 tunnel 并存时各 tunnel 的 taskIDSeed 独立计数,新请求可能
+		// 撞上其它 tunnel 上活着的 peer task 的 id。此时不能杀掉顶替:
+		// shell 仅作为本次信令响应的载体,不占用 peers 表,否则活着的 PC
+		// 会被误杀,重协商请求也会被当首轮协商处理。
+		t.skipPeersRegistration = true
+	} else {
+		c.client.peers[id] = t
 	}
-	c.client.peers[id] = t
 	ok = true
 	return
 }
@@ -604,11 +607,11 @@ func (c *conn) newPeerTask(id uint32) (t *peerTask, ok bool) {
 
 	ot, ok := c.client.peers[id]
 	if ok && ot != nil {
-		ot.CloseWithLock()
-		c.Logger.Info().
-			Uint32("peerTask", id).Msg("got closed because task with same id is received")
+		// 同 newPeerProcTask:撞号时不杀活着的 peer task、不占 peers 表
+		t.skipPeersRegistration = true
+	} else {
+		c.client.peers[id] = t
 	}
-	c.client.peers[id] = t
 	ok = true
 	return
 }
