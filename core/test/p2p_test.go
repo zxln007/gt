@@ -64,7 +64,7 @@ func TestP2PGetOffer(t *testing.T) {
 		"-remote", s.GetListenerAddrPort().String(),
 		"-remoteSTUN", "stun:" + s.GetSTUNListenerAddrPort().String(),
 		"-logLevel", "debug",
-		"-webrtcLogLevel", "warning",
+		"-webrtcLogLevel", "verbose",
 	}, nil)
 	if err != nil {
 		t.Fatal(err)
