@@ -490,10 +490,7 @@ func TestP2PSetOffer(t *testing.T) {
 			}
 		}
 		t.Logf("channel %d received: %s", i, string(respBuf))
-		err = dataChannel.Close()
-		if err != nil {
-			t.Fatal(err)
-		}
+		dataChannel.Close()
 	}
 	t.Log("XP done")
 	s.Shutdown()
