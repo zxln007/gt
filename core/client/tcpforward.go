@@ -89,7 +89,7 @@ func (c *Client) tcpForwardStart(dialer dialer) {
 					}
 				},
 			}
-			err = getPeerConnection().CreateDataChannel(conn.RemoteAddr().String(), false, &dataChannelConfig, &dataChannel)
+			err = getPeerConnection().CreateDataChannelWithID(conn.RemoteAddr().String(), c.nextForwardChannelID(), true, false, &dataChannelConfig, &dataChannel)
 			if err != nil {
 				c.Logger.Error().Err(err).Msg("failed to create data channel")
 				return
@@ -212,7 +212,7 @@ func (c *Client) createPeerConnection(dialer dialer) (peerConnection *webrtc.Pee
 		return
 	}
 	var dataChannelUnused *webrtc.DataChannel
-	err = peerConnection.CreateDataChannel("only", true, nil, &dataChannelUnused)
+	err = peerConnection.CreateDataChannelWithID("only", webrtcTriggerChannelID, true, false, &dataChannelUnused)
 	if err != nil {
 		return
 	}

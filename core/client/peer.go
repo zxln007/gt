@@ -146,6 +146,24 @@ func (pt *peerTask) init(c *conn) (err error) {
 	networkThread := pt.tunnel.client.webrtcThreadPool.GetSocketThread()
 	workerThread := pt.tunnel.client.webrtcThreadPool.GetThread()
 	err = webrtc.NewPeerConnection(&peerConnectionConfig, &pt.conn, signalingThread, networkThread, workerThread)
+	if err != nil {
+		return
+	}
+
+	// 预创建 out-of-band 数据通道（id 与网关侧约定一致）。negotiated=true 的
+	// 通道不进 SDP、无需重新协商,连接建立后自动 open,观察者按需接通本地服务。
+	// 新版 libwebrtc 已移除 in-band 通道的隐式流建立,预创建是让数据流动的关键。
+	for i := uint16(0); i < webrtcChannelIDCount; i++ {
+		observer := &dataChannelObserver{peerTask: pt, httpTask: util.NewBlockValue[httpTask]()}
+		channelConfig := webrtc.DataChannelConfig{
+			OnStateChange: observer.OnStateChange,
+			OnMessage:     observer.OnMessage,
+		}
+		var dataChannel *webrtc.DataChannel
+		if err = pt.conn.CreateDataChannelWithID("p2p", webrtcChannelIDBase+i, true, false, &channelConfig, &dataChannel); err != nil {
+			return
+		}
+	}
 	return
 }
 
@@ -241,6 +259,25 @@ const (
 	dataBody
 	processData
 )
+
+// P2P out-of-band 数据通道的显式 id 约定。新版 libwebrtc 要求 negotiated=true
+// 通道必须显式设置 id,且双方 id 一致才能按 SCTP 流 id 配对。
+//   - 100:协商触发通道（双方各建一个,保持打开以让 offer 携带 SCTP 段）
+//   - 2000..2000+16:tcpForward 每条 TCP 连接的数据通道,网关循环取用,
+//     provider（thread 模式）按同段预创建并挂观察者。
+const (
+	webrtcTriggerChannelID = uint16(100)
+	webrtcChannelIDBase    = uint16(2000)
+	webrtcChannelIDCount   = uint16(16)
+)
+
+// 循环分配 tcpForward 数据通道 id（多客户端共享计数器不影响正确性:
+// id 只要求在同一条 PC 关联内不冲突）。
+var webrtcForwardChannelSeq atomic.Uint32
+
+func nextForwardChannelID() uint16 {
+	return webrtcChannelIDBase + uint16(webrtcForwardChannelSeq.Add(1)-1)%webrtcChannelIDCount
+}
 
 func (pt *peerTask) process(r io.Reader, writer http.ResponseWriter, initFn func() error) {
 	var err error
@@ -428,7 +465,7 @@ func (pt *peerTask) getOffer(_ *http.Request, writer http.ResponseWriter) {
 	}
 
 	var dataChannelUnused *webrtc.DataChannel
-	err = pt.conn.CreateDataChannel("only", true, nil, &dataChannelUnused)
+	err = pt.conn.CreateDataChannelWithID("only", webrtcTriggerChannelID, true, false, nil, &dataChannelUnused)
 	if err != nil {
 		pt.Logger.Error().Err(err).Msg("failed to create only data channel")
 		return

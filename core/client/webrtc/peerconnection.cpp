@@ -198,12 +198,13 @@ class PeerConnectionObserver : public webrtc::PeerConnectionObserver {
         return nullptr;
     }
 
-    char *CreateDataChannel(void **dataChannelOutside, char *label, bool negotiated,
+    char *CreateDataChannel(void **dataChannelOutside, char *label, bool negotiated, int id,
                             void *dataChannelUserData) {
         char *err = nullptr;
         signalingThread->BlockingCall([&] {
             webrtc::DataChannelInit config;
             config.negotiated = negotiated;
+            config.id = id;
             auto dataChannelOrError = peerConnection->CreateDataChannelOrError(label, &config);
             if (!dataChannelOrError.ok()) {
                 std::stringstream ss;
@@ -413,10 +414,10 @@ void GetLocalDescription(int *sdpType, char **sdp, void *peerConnectionOutside) 
     peerConnectionObserver->GetDescription(true, sdpType, sdp);
 }
 
-char *CreateDataChannel(void **dataChannel, char *label, bool negotiated, void *dataChannelUserData,
+char *CreateDataChannel(void **dataChannel, char *label, bool negotiated, int id, void *dataChannelUserData,
                         void *peerConnectionOutside) {
     auto peerConnectionObserver = (::PeerConnectionObserver *)peerConnectionOutside;
-    auto err = peerConnectionObserver->CreateDataChannel(dataChannel, label, negotiated,
+    auto err = peerConnectionObserver->CreateDataChannel(dataChannel, label, negotiated, id,
                                                          dataChannelUserData);
     return err;
 }

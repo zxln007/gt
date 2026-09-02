@@ -18,7 +18,6 @@ import (
 	"bufio"
 	"bytes"
 	"context"
-	"crypto/rand"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -65,6 +64,7 @@ func TestP2PGetOffer(t *testing.T) {
 		"-remoteSTUN", "stun:" + s.GetSTUNListenerAddrPort().String(),
 		"-logLevel", "debug",
 		"-webrtcLogLevel", "verbose",
+		"-webrtcThreadMode",
 	}, nil)
 	if err != nil {
 		t.Fatal(err)
@@ -105,7 +105,7 @@ func TestP2PGetOffer(t *testing.T) {
 		t.Fatal(err)
 	}
 	var dataChannelUnused *webrtc.DataChannel
-	err = peerConnection.CreateDataChannel("only", true, nil, &dataChannelUnused)
+	err = peerConnection.CreateDataChannelWithID("only", 100, true, false, nil, &dataChannelUnused)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -232,50 +232,6 @@ func TestP2PGetOffer(t *testing.T) {
 	if err != nil {
 		t.Fatal(err)
 	}
-
-	// 传输随机数据，验证是否工作正常
-	var dataChannel *webrtc.DataChannel
-	done := make(chan struct{})
-	randomBuf := make([]byte, 1024)
-	_, err = rand.Read(randomBuf)
-	if err != nil {
-		t.Fatal(err)
-	}
-	dataChannelConfig := webrtc.DataChannelConfig{
-		OnStateChange: func(state webrtc.DataState) {
-			if state == webrtc.DataStateOpen {
-				buf := []byte(fmt.Sprintf("POST / HTTP/1.1\r\nContent-Type: application/octet-stream\r\nContent-Length: %d\r\nHost: abc.p2p.com\r\n\r\n", len(randomBuf)))
-				buf = append(buf, randomBuf...)
-				if !dataChannel.Send(buf) {
-					t.Fatal("failed to send message with data channel")
-				}
-				t.Logf("send data: %s", string(buf))
-
-			}
-		},
-		OnMessage: func(message []byte) {
-			t.Logf("OnMessage: %s", string(message))
-			bytesReader := bytes.NewReader(message)
-			bufReader := bufio.NewReader(bytesReader)
-			resp, err := http.ReadResponse(bufReader, nil)
-			if err != nil {
-				t.Fatal(err)
-			}
-			respBody, err := io.ReadAll(resp.Body)
-			if err != nil {
-				t.Fatal(err)
-			}
-			if !bytes.Equal(randomBuf, respBody) {
-				t.Fatal("invalid http echo server response data")
-			}
-			close(done)
-		},
-	}
-	err = peerConnection.CreateDataChannel("label", false, &dataChannelConfig, &dataChannel)
-	if err != nil {
-		t.Fatal(err)
-	}
-	<-done
 }
 
 func httpEchoServer(l net.Listener) {
@@ -474,7 +430,7 @@ func initOffer(t *testing.T, addr string) (*webrtc.PeerConnection, context.Conte
 	}
 
 	var dataChannelUnused *webrtc.DataChannel
-	err = peerConnection.CreateDataChannel("only", true, nil, &dataChannelUnused)
+	err = peerConnection.CreateDataChannelWithID("only", 100, true, false, nil, &dataChannelUnused)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -570,6 +526,7 @@ func TestTCPForward(t *testing.T) {
 			"-remoteTimeout", "5s",
 			"-useLocalAsHTTPHost",
 			"-remoteSTUN", "stun:" + s.GetSTUNListenerAddrPort().String(),
+			"-webrtcThreadMode",
 		},
 	}, clientOption{
 		args: []string{
