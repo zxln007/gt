@@ -535,6 +535,7 @@ func TestTCPForward(t *testing.T) {
 			"-secret", "secret2",
 			"-remote", s.GetListenerAddrPort().String(),
 			"-local", "http://www.baidu.com/",
+			"-logLevel", "debug",
 			"-remoteTimeout", "5s",
 			"-useLocalAsHTTPHost",
 			"-remoteSTUN", "stun:" + s.GetSTUNListenerAddrPort().String(),
