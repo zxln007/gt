@@ -536,7 +536,7 @@ func initOffer(t *testing.T, addr string, threadPool *webrtc.ThreadPool) (*webrt
 		},
 	}
 	var err error
-	err = webrtc.NewPeerConnection(&config, &peerConnection, threadPool.GetThread(), threadPool.GetSocketThread(), threadPool.GetThread(), nil)
+	err = webrtc.NewPeerConnection(&config, &peerConnection, threadPool.GetThread(), threadPool.GetSocketThread(), threadPool.GetThread())
 	if err != nil {
 		t.Fatal(err)
 	}
