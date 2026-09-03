@@ -73,17 +73,6 @@ where
         debug!("config json: {}", &json);
         let op = serde_json::from_str::<OP>(&json)
             .with_context(|| format!("deserialize config json failed: {}", json))?;
-        // let op: OP = OP::Config(Config {
-        //     stuns: vec!["stun:127.0.0.1:3478".to_owned()],
-        //     http_routes: HashMap::from([("@".to_owned(), "http://www.baidu.com".to_owned())]),
-        //     ..Default::default()
-        // });
-        // write json config to stdout
-        let output = Arc::new(Mutex::new(tokio::io::stdout()));
-        write_json(Arc::clone(&output), &serde_json::to_string(&op).unwrap())
-            .await
-            .map_err(|e| println!("write json error: {:?}", e))
-            .expect("write json");
         // bind origin op to config
         let config = match op {
             OP::Config(config) => config,
