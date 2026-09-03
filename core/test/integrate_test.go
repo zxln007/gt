@@ -1255,7 +1255,8 @@ func TestConnectionsLimit(t *testing.T) {
 func TestReconnectLimit(t *testing.T) {
 	t.Parallel()
 
-	// 启动服务端
+	// 启动服务端(捕获日志,验证限流确实发生)
+	serverLogWriter, serverLog := newStringWriter()
 	s, err := setupServer([]string{
 		"server",
 		"-addr", "127.0.0.1:0",
@@ -1264,7 +1265,7 @@ func TestReconnectLimit(t *testing.T) {
 		"-reconnectDuration", "6s",
 		"-reconnectTimes", "0",
 		"-logLevel", "debug",
-	}, nil)
+	}, serverLogWriter)
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1287,14 +1288,19 @@ func TestReconnectLimit(t *testing.T) {
 		t.Fatal("expect err not nil")
 	}
 
-	// 客户端在 30 秒内不断重试(约 30 次)。server 每 reconnectDuration(6s)
-	// 重置一次限流计数,期间被限流的连接被静默丢弃(无错误信号),因此收到
-	// 的错误信号只有少数几次。并行 CI 环境下重试间隔有抖动,精确次数会漂移
-	// (实测 4-5 次),断言限流不变量:至少收到一次,且远小于总尝试次数。
+	// 客户端在 30 秒内不断重试(约 30 次)。server 对限流中的 IP 静默丢弃
+	// 连接(无错误信号),每 reconnectDuration(6s) 重置一次计数,因此客户端
+	// 收到的错误信号远少于尝试次数,且精确次数随并行负载漂移(实测 4-15)。
+	// 确定性断言改为:①客户端确实收到过 auth 失败信号;②server 日志出现
+	// "is limited"(限流真实生效,而非每次都回错误信号)。
 	rejectedCount := strings.Count(client1Log(), "invalid id and secret")
-	if rejectedCount < 1 || rejectedCount > 10 {
+	if rejectedCount < 1 {
 		t.Log("client1Log", client1Log())
-		t.Fatalf("client1 rejected count out of range: %d", rejectedCount)
+		t.Fatal("client1 did not receive any auth error signal")
+	}
+	if !strings.Contains(serverLog(), "is limited") {
+		t.Log("serverLog", serverLog())
+		t.Fatal("server did not limit reconnecting IP")
 	}
 
 	c1.Close()
@@ -1549,17 +1555,17 @@ users:
  id4:
    secret: secret4
    tcp:
-     - range: 21000-22000
-     - range: 22001-23000
+     - range: 2100-2200
+     - range: 2201-2300
  id5:
    secret: secret5
    tcp:
-     - range: 24001-24999
+     - range: 2401-2499
  id6:
    secret: secret6
    tcp:
-     - range: 27000-28000
-     - range: 28100-29000
+     - range: 2700-2800
+     - range: 2810-2900
 `), 0o644)
 	if err != nil {
 		t.Fatal(err)
@@ -1614,21 +1620,21 @@ users:
 	}, clientOption{
 		args: []string{
 			"client", "-id=id4", "-secret=secret4", "-remote", s.GetListenerAddrPort().String(),
-			"-local=tcp://www.baidu.com:80", "-remoteTimeout=5s", "-useLocalAsHTTPHost", "-remoteTCPPort=22000",
-			"-local=tcp://www.baidu.com:80", "-remoteTimeout=5s", "-useLocalAsHTTPHost", "-remoteTCPPort=23000",
+			"-local=tcp://www.baidu.com:80", "-remoteTimeout=5s", "-useLocalAsHTTPHost", "-remoteTCPPort=2200",
+			"-local=tcp://www.baidu.com:80", "-remoteTimeout=5s", "-useLocalAsHTTPHost", "-remoteTCPPort=2300",
 		},
 		out: client4LogWriter,
 	}, clientOption{
 		args: []string{
 			"client", "-id=id5", "-secret=secret5", "-remote", s.GetListenerAddrPort().String(),
-			"-local=tcp://www.baidu.com:80", "-remoteTimeout=5s", "-useLocalAsHTTPHost", "-remoteTCPPort=26001",
-			"-local=tcp://www.baidu.com:80", "-remoteTimeout=5s", "-useLocalAsHTTPHost", "-remoteTCPPort=26002",
+			"-local=tcp://www.baidu.com:80", "-remoteTimeout=5s", "-useLocalAsHTTPHost", "-remoteTCPPort=2601",
+			"-local=tcp://www.baidu.com:80", "-remoteTimeout=5s", "-useLocalAsHTTPHost", "-remoteTCPPort=2602",
 		},
 		out: client5LogWriter,
 	}, clientOption{
 		args: []string{
 			"client", "-id=id6", "-secret=secret6", "-remote", s.GetListenerAddrPort().String(),
-			"-local=tcp://www.baidu.com:80", "-remoteTimeout=5s", "-useLocalAsHTTPHost", "-remoteTCPPort=20001",
+			"-local=tcp://www.baidu.com:80", "-remoteTimeout=5s", "-useLocalAsHTTPHost", "-remoteTCPPort=10500",
 		},
 		out: client6LogWriter,
 	})
