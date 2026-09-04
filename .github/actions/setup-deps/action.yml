@@ -1,0 +1,122 @@
+# ─────────────────────────────────────────────────────────────
+# 公共步骤:msquic / webrtc 预构建静态库解析 + WebRTC 头文件同步
+# 供 test.yml 与 build.yml 复用,避免两份复制粘贴各自漂移
+# ─────────────────────────────────────────────────────────────
+name: 'Setup GT native deps'
+description: >
+  Resolve msquic/webrtc prebuilt static libs from GitHub releases (with retry,
+  falling back to a source build) and sync the matching WebRTC headers via gclient.
+
+inputs:
+  target:
+    description: 'Build target triple, e.g. x86_64-linux-gnu'
+    required: true
+  msquic-release-tag:
+    description: 'Release tag hosting the msquic prebuilt archives'
+    required: false
+    default: msquic-prebuilt
+  webrtc-release-tag:
+    description: 'Release tag hosting the webrtc prebuilt archives'
+    required: false
+    default: webrtc-prebuilt
+
+outputs:
+  msquic-mode:
+    description: 'How msquic was resolved: prebuilt or build'
+    value: ${{ steps.msquic.outputs.mode }}
+  webrtc-mode:
+    description: 'How webrtc was resolved: prebuilt or build'
+    value: ${{ steps.webrtc.outputs.mode }}
+
+runs:
+  using: composite
+  steps:
+    # release assets are fetched by several jobs at once; the CDN throttles
+    # under that fan-out, so retry a few times before giving up
+    - name: Resolve msquic prebuilt
+      id: msquic
+      shell: bash
+      env:
+        TARGET: ${{ inputs.target }}
+        TAG: ${{ inputs.msquic-release-tag }}
+      run: |
+        download_with_retry() {
+          local tag="$1" pattern="$2" dest="$3" attempt
+          for attempt in 1 2 3 4; do
+            if gh release download "$tag" --pattern "$pattern" --dir "$dest" --clobber; then
+              return 0
+            fi
+            echo "download attempt $attempt failed; retrying in $((attempt * 15))s"
+            sleep $((attempt * 15))
+          done
+          return 1
+        }
+
+        rm -rf /tmp/msquic-download && mkdir -p /tmp/msquic-download
+        rm -rf "core/prebuilt/msquic/$TARGET"
+        if download_with_retry "$TAG" "msquic-$TARGET.tar.gz" /tmp/msquic-download; then
+          mkdir -p "core/prebuilt/msquic/$TARGET"
+          tar -xzf "/tmp/msquic-download/msquic-$TARGET.tar.gz" -C "core/prebuilt/msquic/$TARGET"
+          echo "mode=prebuilt" >> "$GITHUB_OUTPUT"
+        else
+          echo "Prebuilt msquic for $TARGET not found; falling back to source build."
+          echo "mode=build" >> "$GITHUB_OUTPUT"
+        fi
+
+    - name: Resolve webrtc prebuilt
+      id: webrtc
+      shell: bash
+      env:
+        TARGET: ${{ inputs.target }}
+        TAG: ${{ inputs.webrtc-release-tag }}
+      run: |
+        download_with_retry() {
+          local tag="$1" pattern="$2" dest="$3" attempt
+          for attempt in 1 2 3 4; do
+            if gh release download "$tag" --pattern "$pattern" --dir "$dest" --clobber; then
+              return 0
+            fi
+            echo "download attempt $attempt failed; retrying in $((attempt * 15))s"
+            sleep $((attempt * 15))
+          done
+          return 1
+        }
+
+        rm -rf /tmp/webrtc-download && mkdir -p /tmp/webrtc-download
+        rm -rf "core/prebuilt/webrtc/$TARGET"
+        if download_with_retry "$TAG" "webrtc-$TARGET.tar.gz" /tmp/webrtc-download; then
+          mkdir -p "core/prebuilt/webrtc/$TARGET"
+          tar -xzf "/tmp/webrtc-download/webrtc-$TARGET.tar.gz" -C "core/prebuilt/webrtc/$TARGET"
+          echo "mode=prebuilt" >> "$GITHUB_OUTPUT"
+        else
+          echo "Prebuilt webrtc for $TARGET not found; falling back to source build."
+          echo "mode=build" >> "$GITHUB_OUTPUT"
+        fi
+        # record the exact commit the prebuilt lib was built from, so the
+        # header checkout below can be pinned to it (HEAD-headers vs older
+        # lib skew silently breaks the native peer connection)
+        if [ -f "core/prebuilt/webrtc/$TARGET/metadata.json" ]; then
+          revision=$(sed -n 's/.*"webrtc_commit": *"\([^"]*\)".*/\1/p' "core/prebuilt/webrtc/$TARGET/metadata.json")
+          echo "revision=$revision" >> "$GITHUB_OUTPUT"
+        fi
+
+    # cgo compiles the webrtc bindings against headers from the webrtc
+    # checkout (plus abseil-cpp); the prebuilt archives ship only libs.
+    - name: Sync WebRTC headers pinned to the prebuilt lib commit
+      shell: bash
+      env:
+        WEBRTC_REVISION: ${{ steps.webrtc.outputs.revision }}
+      run: |
+        git clone --depth=1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
+        export PATH="$PWD/depot_tools:$PATH"
+        echo "$PWD/depot_tools" >> "$GITHUB_PATH"
+        cd core/dep/_google-webrtc
+        gclient config --spec 'solutions = [ { "name": "src", "url": "https://webrtc.googlesource.com/src.git", "managed": False, "custom_deps": {}, }, ]'
+        if [ -n "$WEBRTC_REVISION" ]; then
+          gclient sync --revision "src@$WEBRTC_REVISION" --nohooks --no-history --shallow
+        else
+          gclient sync --nohooks --no-history --shallow
+        fi
+        mkdir -p src/build/util
+        echo "$(date +%s)" > src/build/util/LASTCHANGE.committime
+        echo "LASTCHANGE=d0c0fbd3" > src/build/util/LASTCHANGE
