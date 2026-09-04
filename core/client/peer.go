@@ -23,6 +23,7 @@ import (
 	"net"
 	"net/http"
 	"strconv"
+	"sync"
 	"sync/atomic"
 	"time"
 
@@ -53,6 +54,12 @@ type peerTask struct {
 	channelCount          atomic.Uint32
 	apiConn               *api.Conn
 	waitNegotiationNeeded chan struct{}
+	negotiationOnce       sync.Once
+	// negotiationMtx 串行化同一 PC 上的 SDP 操作:初始 offer/answer 与后续
+	// 重协商的 offer/answer 都要求信令状态机处于稳定态,并发到达会互相踩踏
+	negotiationMtx sync.Mutex
+	// skipPeersRegistration 撞号的信令 shell 不占用 peers 表(见 newPeerTask)
+	skipPeersRegistration bool
 }
 
 func (pt *peerTask) APIConn() *api.Conn {
@@ -83,7 +90,10 @@ func (pt *peerTask) OnRenegotiationNeeded() {
 }
 
 func (pt *peerTask) OnNegotiationNeeded() {
-	close(pt.waitNegotiationNeeded)
+	// libwebrtc 可能重复触发(如连接建立后),只允许关闭一次
+	pt.negotiationOnce.Do(func() {
+		close(pt.waitNegotiationNeeded)
+	})
 }
 
 func (pt *peerTask) OnICEConnectionChange(state webrtc.ICEConnectionState) {
@@ -156,7 +166,9 @@ func (pt *peerTask) Close() {
 	defer pool.BytesPool.Put(pt.data)
 	close(pt.closeChan)
 	client := pt.tunnel.client
-	delete(client.peers, pt.id)
+	if !pt.skipPeersRegistration {
+		delete(client.peers, pt.id)
+	}
 	if pt.conn != nil {
 		pt.conn.Close()
 	}
@@ -174,7 +186,9 @@ func (pt *peerTask) CloseWithLock() {
 	close(pt.closeChan)
 	client := pt.tunnel.client
 	client.peersRWMtx.Lock()
-	delete(client.peers, pt.id)
+	if !pt.skipPeersRegistration {
+		delete(client.peers, pt.id)
+	}
 	client.peersRWMtx.Unlock()
 	if pt.conn != nil {
 		pt.conn.Close()
@@ -241,6 +255,15 @@ const (
 	dataBody
 	processData
 )
+
+// P2P 触发通道的显式 id 约定。新版 libwebrtc 下 offer 要携带 SCTP 段
+// (m=application) 必须存在保持打开的数据通道:
+//   - 100:offerer 侧创建的触发通道（negotiated=true,双方无需配对,
+//     仅用于让首轮 offer 携带传输段）,保持打开
+//
+// 访客/网关的每条连接通道为 in-band（negotiated=false,自动分配 id）,
+// 连接建立后创建,经重新协商进入 SDP 后 open。
+const webrtcTriggerChannelID = uint16(100)
 
 func (pt *peerTask) process(r io.Reader, writer http.ResponseWriter, initFn func() error) {
 	var err error
@@ -378,38 +401,149 @@ outLoop:
 	}
 }
 
+// processOffer 处理访客/网关侧发来的 offer。请求不带 WebRTC-OP-ID 头时是
+// 首轮协商:在当前 task 上创建 PC 并回答;带 WebRTC-OP-ID 头时路由到既有
+// task,在其 PC 上应用连续 offer（重协商）,让连接建立后创建的 in-band
+// 通道进入 SDP——新版 libwebrtc 已移除 in-band 通道的隐式流建立。
 func (pt *peerTask) processOffer(r *http.Request, writer http.ResponseWriter) {
-	pt.process(r.Body, writer, func() (err error) {
+	var err error
+	var shouldClose bool
+	defer func() {
+		if err != nil {
+			writer.WriteHeader(http.StatusBadRequest)
+		}
+		pt.Logger.Info().Err(err).Msg("processOffer done")
+		if shouldClose {
+			pt.CloseWithLock()
+		}
+	}()
+	task := pt
+	idValue := r.Header.Get("WebRTC-OP-ID")
+	if idValue != "" {
+		id, parseErr := strconv.ParseUint(idValue, 10, 32)
+		if parseErr != nil {
+			err = parseErr
+			return
+		}
+		client := pt.tunnel.client
+		client.peersRWMtx.RLock()
+		et, ok := client.peers[uint32(id)]
+		client.peersRWMtx.RUnlock()
+		if !ok {
+			err = errors.New("invalid task id")
+			return
+		}
+		existing, ok := et.(*peerTask)
+		if !ok {
+			err = errors.New("renegotiation is not supported for peer process task")
+			return
+		}
+		// 多 tunnel 并存时各 tunnel 的 taskIDSeed 独立计数,本请求的 shell
+		// 可能与既有 peer task 同号。只要 header 指向的 task 存在且不是
+		// shell 自身就路由过去,不能仅凭 id 相等判定为首轮协商。
+		if existing != pt {
+			shouldClose = true
+			task = existing
+		}
+	}
+	if task.conn == nil && task != pt {
+		err = errors.New("peer task is not ready for renegotiation")
+		return
+	}
+	if task.conn == nil {
+		task.process(r.Body, writer, func() (err error) {
+			var offer webrtc.SessionDescription
+			err = json.Unmarshal(task.data[:task.n], &offer)
+			if err != nil {
+				return
+			}
+			task.negotiationMtx.Lock()
+			defer task.negotiationMtx.Unlock()
+			return task.answerOffer(&offer, writer, true)
+		})
+		return
+	}
+	err = task.renegotiate(r.Body, writer)
+}
+
+// renegotiate 处理重协商请求体里的连续 offer。分帧与 process 一致
+// （[2 字节长度][json]）,但用局部缓冲读取:首轮交换的 process 可能仍在
+// 收尾,复用 task 的状态机字段会与之互踩。
+func (pt *peerTask) renegotiate(body io.Reader, writer http.ResponseWriter) (err error) {
+	reader := std.NewChunkedReader(body)
+	var l [2]byte
+	_, err = io.ReadFull(reader, l[:])
+	if err != nil {
+		return
+	}
+	en := uint16(l[0])<<8 | uint16(l[1])
+	if en > pool.MaxBufferSize {
+		err = errors.New("dataLen is too long")
+		return
+	}
+	offerBuf := make([]byte, en)
+	_, err = io.ReadFull(reader, offerBuf)
+	if err != nil {
+		return
+	}
+	var offer webrtc.SessionDescription
+	err = json.Unmarshal(offerBuf, &offer)
+	if err != nil {
+		return
+	}
+	pt.negotiationMtx.Lock()
+	defer pt.negotiationMtx.Unlock()
+	return pt.answerOffer(&offer, writer, false)
+}
+
+// writeChunk 以 [2 字节大端长度][payload] 分帧写响应消息。信令响应里的
+// 所有消息（SDP、candidate、id）统一用该分帧,对端按帧解析。
+func (pt *peerTask) writeChunk(writer http.ResponseWriter, payload []byte) (err error) {
+	buf := pt.data
+	if len(payload)+2 > len(buf) {
+		buf = make([]byte, len(payload)+2)
+	}
+	n := uint16(len(payload))
+	l := copy(buf, []byte{byte(n >> 8), byte(n)})
+	l += copy(buf[l:], payload)
+	_, err = writer.Write(buf[:l])
+	return
+}
+
+// answerOffer 应用 offer 并回答 answer。initial 为 true 是首轮协商:
+// 初始化 PC、流式回送 ICE candidate,响应尾部附带 {"id":N} 供对端在后续
+// 重协商请求中路由到本 task。为 false 是既有 PC 上的重协商:ICE 传输与
+// 凭据不变、无新的 gathering,只回送 answer 本身。
+func (pt *peerTask) answerOffer(offer *webrtc.SessionDescription, writer http.ResponseWriter, initial bool) (err error) {
+	if initial {
 		err = pt.init(pt.tunnel)
 		if err != nil {
 			return
 		}
-
-		var offer webrtc.SessionDescription
-		err = json.Unmarshal(pt.data[:pt.n], &offer)
-		if err != nil {
-			return
-		}
-		err = pt.conn.SetRemoteDescription(&offer)
-		if err != nil {
-			return
-		}
-		answer, err := pt.conn.CreateAnswer()
-		if err != nil {
-			return
-		}
-		err = pt.conn.SetLocalDescription(answer)
-		if err != nil {
-			return
-		}
-		answer = pt.conn.GetLocalDescription()
-		answerJSON, err := json.Marshal(&answer)
-		if err != nil {
-			return
-		}
-		pt.response(writer, answerJSON)
+	}
+	err = pt.conn.SetRemoteDescription(offer)
+	if err != nil {
 		return
-	})
+	}
+	var answer *webrtc.SessionDescription
+	answer, err = pt.conn.CreateAnswer()
+	if err != nil {
+		return
+	}
+	err = pt.conn.SetLocalDescription(answer)
+	if err != nil {
+		return
+	}
+	answer = pt.conn.GetLocalDescription()
+	answerJSON, err := json.Marshal(&answer)
+	if err != nil {
+		return
+	}
+	if initial {
+		pt.response(writer, answerJSON)
+		return pt.writeChunk(writer, []byte(fmt.Sprintf(`{"id":%d}`, pt.id)))
+	}
+	return pt.writeChunk(writer, answerJSON)
 }
 
 func (pt *peerTask) getOffer(_ *http.Request, writer http.ResponseWriter) {
@@ -428,7 +562,7 @@ func (pt *peerTask) getOffer(_ *http.Request, writer http.ResponseWriter) {
 	}
 
 	var dataChannelUnused *webrtc.DataChannel
-	err = pt.conn.CreateDataChannel("only", true, nil, &dataChannelUnused)
+	err = pt.conn.CreateDataChannelWithID("only", webrtcTriggerChannelID, true, false, nil, &dataChannelUnused)
 	if err != nil {
 		pt.Logger.Error().Err(err).Msg("failed to create only data channel")
 		return
@@ -443,8 +577,7 @@ func (pt *peerTask) getOffer(_ *http.Request, writer http.ResponseWriter) {
 		Uint64("bytesSent", dataChannelUnused.BytesSent()).
 		Uint64("bytesReceived", dataChannelUnused.BytesReceived()).
 		Uint64("bufferedAmount", dataChannelUnused.BufferedAmount()).
-		Msg("close data channel")
-	dataChannelUnused.Close()
+		Msg("tunnel data channel created (kept open: offer must carry the SCTP section)")
 
 	select {
 	case <-pt.waitNegotiationNeeded:
@@ -468,7 +601,7 @@ func (pt *peerTask) getOffer(_ *http.Request, writer http.ResponseWriter) {
 		return
 	}
 	pt.response(writer, offerBytes)
-	_, err = writer.Write([]byte(fmt.Sprintf(`{"id":%d}`, pt.id)))
+	err = pt.writeChunk(writer, []byte(fmt.Sprintf(`{"id":%d}`, pt.id)))
 }
 
 func (pt *peerTask) processAnswer(r *http.Request, writer http.ResponseWriter) {
@@ -486,21 +619,28 @@ func (pt *peerTask) processAnswer(r *http.Request, writer http.ResponseWriter) {
 	}()
 	task := pt
 	idValue := r.Header.Get("WebRTC-OP-ID")
-	id, err := strconv.ParseUint(idValue, 10, 32)
-	if err != nil {
+	id, parseErr := strconv.ParseUint(idValue, 10, 32)
+	if parseErr != nil {
+		err = parseErr
 		return
 	}
-	if uint32(id) != pt.id {
+	client := c.client
+	client.peersRWMtx.RLock()
+	et, ok := client.peers[uint32(id)]
+	client.peersRWMtx.RUnlock()
+	if !ok {
+		err = errors.New("invalid task id")
+		return
+	}
+	existing, ok := et.(*peerTask)
+	if !ok {
+		err = errors.New("invalid task id type")
+		return
+	}
+	// 同 processOffer:撞号时 header 指向的既有 task 优先于 shell 自身
+	if existing != pt {
 		shouldClose = true
-		client := c.client
-		client.peersRWMtx.RLock()
-		pt, ok := client.peers[uint32(id)]
-		client.peersRWMtx.RUnlock()
-		if !ok {
-			err = errors.New("invalid task id")
-			return
-		}
-		task = pt.(*peerTask)
+		task = existing
 	}
 	task.process(r.Body, writer, func() (err error) {
 		var answer webrtc.SessionDescription

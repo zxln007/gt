@@ -31,6 +31,7 @@ import (
 	"os/exec"
 	"strconv"
 	"strings"
+	"sync"
 	"sync/atomic"
 	"time"
 )
@@ -51,6 +52,11 @@ type peerProcessTask struct {
 	stdout   io.ReadCloser
 	stdin    io.WriteCloser
 	stderr   io.ReadCloser
+	// skipPeersRegistration 撞号的信令 shell 不占用 peers 表(见 newPeerTask)
+	skipPeersRegistration bool
+	// renegotiationMtx 串行化对子进程 stdin/stdout 的 op 交换,并发请求
+	// 交叉读写会把 offer/answer 配错对
+	renegotiationMtx sync.Mutex
 }
 
 type op struct {
@@ -182,7 +188,9 @@ func (pt *peerProcessTask) Close() {
 	}
 	defer pool.BytesPool.Put(pt.data)
 	client := pt.tunnel.client
-	delete(client.peers, pt.id)
+	if !pt.skipPeersRegistration {
+		delete(client.peers, pt.id)
+	}
 	if pt.timer != nil {
 		pt.timer.Stop()
 	}
@@ -200,7 +208,9 @@ func (pt *peerProcessTask) CloseWithLock() {
 	defer pool.BytesPool.Put(pt.data)
 	client := pt.tunnel.client
 	client.peersRWMtx.Lock()
-	delete(client.peers, pt.id)
+	if !pt.skipPeersRegistration {
+		delete(client.peers, pt.id)
+	}
 	client.peersRWMtx.Unlock()
 	if pt.timer != nil {
 		pt.timer.Stop()
@@ -219,7 +229,9 @@ func (pt *peerProcessTask) closeWithLock() {
 	defer pool.BytesPool.Put(pt.data)
 	client := pt.tunnel.client
 	client.peersRWMtx.Lock()
-	delete(client.peers, pt.id)
+	if !pt.skipPeersRegistration {
+		delete(client.peers, pt.id)
+	}
 	client.peersRWMtx.Unlock()
 	if pt.timer != nil {
 		pt.timer.Stop()
@@ -368,37 +380,135 @@ func (pt *peerProcessTask) response(writer http.ResponseWriter, sdp []byte) {
 }
 
 func (pt *peerProcessTask) processOffer(r *http.Request, writer http.ResponseWriter) {
-	pt.process(r.Body, writer, func() (err error) {
+	var err error
+	var shouldClose bool
+	defer func() {
+		if err != nil {
+			writer.WriteHeader(http.StatusBadRequest)
+		}
+		pt.Logger.Info().Err(err).Msg("processOffer done")
+		if shouldClose {
+			pt.CloseWithLock()
+		}
+	}()
+	// 与 peer.go 的 processOffer 同构:带 WebRTC-OP-ID 头时路由到既有
+	// task 的子进程应用连续 offer（重协商）,否则在当前 task 上首轮协商
+	task := pt
+	idValue := r.Header.Get("WebRTC-OP-ID")
+	if idValue != "" {
+		id, parseErr := strconv.ParseUint(idValue, 10, 32)
+		if parseErr != nil {
+			err = parseErr
+			return
+		}
+		client := pt.tunnel.client
+		client.peersRWMtx.RLock()
+		et, ok := client.peers[uint32(id)]
+		client.peersRWMtx.RUnlock()
+		if !ok {
+			err = errors.New("invalid task id")
+			return
+		}
+		existing, ok := et.(*peerProcessTask)
+		if !ok {
+			err = errors.New("invalid task id type")
+			return
+		}
+		// 多 tunnel 并存时 shell 可能与既有 task 同号,查找优先
+		if existing != pt {
+			shouldClose = true
+			task = existing
+		}
+	}
+	if task.cmd == nil && task != pt {
+		err = errors.New("peer process task is not ready for renegotiation")
+		return
+	}
+	if task.cmd == nil {
+		task.process(r.Body, writer, func() (err error) {
+			task.renegotiationMtx.Lock()
+			defer task.renegotiationMtx.Unlock()
+			return task.answerOffer(string(task.data[:task.n]), writer, true)
+		})
+		return
+	}
+	task.renegotiationMtx.Lock()
+	defer task.renegotiationMtx.Unlock()
+	err = task.exchangeRenegotiationOffer(r.Body, writer)
+}
+
+// answerOffer 把 offer 转发给 sub-p2p 子进程并回答 answer。initial 为 true
+// 是首轮协商:初始化子进程、流式回送 ICE candidate,响应尾部附带 {"id":N}
+// 供对端在后续重协商请求中路由到本 task。为 false 是既有子进程上的重协商:
+// ICE 传输与凭据不变,只回送 answer 本身。子进程的 handle 循环串行处理
+// stdin ops,连续 OfferSDP 天然支持。
+func (pt *peerProcessTask) answerOffer(offerSDP string, writer http.ResponseWriter, initial bool) (err error) {
+	if initial {
 		err = pt.init()
 		if err != nil {
 			return
 		}
-
-		js, err := json.Marshal(&op{
-			OfferSDP: string(pt.data[:pt.n]),
-		})
-		if err != nil {
-			return
-		}
-		err = pt.writeJson(js)
-		if err != nil {
-			return
-		}
-
-		js, err = pt.readJson()
-		if err != nil {
-			return
-		}
-		op := op{}
-		err = json.Unmarshal(js, &op)
-		if err != nil {
-			return
-		}
-		pt.response(writer, []byte(op.AnswerSDP))
-		return
+	}
+	js, err := json.Marshal(&op{
+		OfferSDP: offerSDP,
 	})
+	if err != nil {
+		return
+	}
+	err = pt.writeJson(js)
+	if err != nil {
+		return
+	}
+	js, err = pt.readJson()
+	if err != nil {
+		return
+	}
+	op := op{}
+	err = json.Unmarshal(js, &op)
+	if err != nil {
+		return
+	}
+	if op.AnswerSDP == "" {
+		err = errors.New("empty answer sdp from peer process")
+		return
+	}
+	if initial {
+		pt.response(writer, []byte(op.AnswerSDP))
+		idTail := fmt.Sprintf(`{"id":%d}`, pt.id)
+		n := uint16(len(idTail))
+		l := copy(pt.data, []byte{byte(n >> 8), byte(n)})
+		l += copy(pt.data[l:], idTail)
+		_, err = writer.Write(pt.data[:l])
+		return
+	}
+	n := uint16(len(op.AnswerSDP))
+	l := copy(pt.data, []byte{byte(n >> 8), byte(n)})
+	l += copy(pt.data[l:], op.AnswerSDP)
+	_, err = writer.Write(pt.data[:l])
+	return
 }
 
+// exchangeRenegotiationOffer 处理重协商请求体里的连续 offer。分帧与 process
+// 一致（[2 字节长度][json]）,但用局部缓冲读取,避免与首轮交换的状态机互踩。
+func (pt *peerProcessTask) exchangeRenegotiationOffer(body io.Reader, writer http.ResponseWriter) (err error) {
+	reader := std.NewChunkedReader(body)
+	var l [2]byte
+	_, err = io.ReadFull(reader, l[:])
+	if err != nil {
+		return
+	}
+	en := uint16(l[0])<<8 | uint16(l[1])
+	if en > pool.MaxBufferSize {
+		err = errors.New("dataLen is too long")
+		return
+	}
+	offerBuf := make([]byte, en)
+	_, err = io.ReadFull(reader, offerBuf)
+	if err != nil {
+		return
+	}
+	return pt.answerOffer(string(offerBuf), writer, false)
+}
 func (pt *peerProcessTask) getOffer(_ *http.Request, writer http.ResponseWriter) {
 	var err error
 	defer func() {
@@ -456,17 +566,24 @@ func (pt *peerProcessTask) processAnswer(r *http.Request, writer http.ResponseWr
 	if err != nil {
 		return
 	}
-	if uint32(id) != pt.id {
+	client := c.client
+	client.peersRWMtx.RLock()
+	et, ok := client.peers[uint32(id)]
+	client.peersRWMtx.RUnlock()
+	if !ok {
+		err = errors.New("invalid task id")
+		return
+	}
+	existing, ok := et.(*peerProcessTask)
+	if !ok {
+		err = errors.New("invalid task id type")
+		return
+	}
+	// 同 peer.go 的 processAnswer:撞号时 header 指向的既有 task 优先于
+	// shell 自身
+	if existing != pt {
 		shouldClose = true
-		client := c.client
-		client.peersRWMtx.RLock()
-		pt, ok := client.peers[uint32(id)]
-		client.peersRWMtx.RUnlock()
-		if !ok {
-			err = errors.New("invalid task id")
-			return
-		}
-		task = pt.(*peerProcessTask)
+		task = existing
 	}
 	task.process(r.Body, writer, func() (err error) {
 		js, err := json.Marshal(&op{

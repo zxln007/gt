@@ -424,3 +424,14 @@ p { margin: 0; }
 @media (max-width: 700px) {
   .steps { grid-template-columns: 1fr; }
 }
+
+/* ── 文档页(条款/滥用举报) ── */
+.doc { max-width: 780px; }
+.doc h2 { font-size: 18px; margin: 30px 0 10px; }
+.doc p, .doc li { color: var(--dim); font-size: 14.5px; }
+.doc ul, .doc ol { padding-left: 22px; margin: 8px 0; }
+.doc li { margin: 4px 0; }
+.doc strong { color: var(--text); font-weight: 600; }
+.doc a { font-weight: 500; }
+.doc .doc-updated { color: var(--faint); font-size: 13px; margin: -6px 0 8px; }
+.doc .panel { padding: 18px 22px; margin: 14px 0; }

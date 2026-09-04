@@ -7,6 +7,26 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ---
 
+## [v2.4.1] - 2026-09-04
+
+### 🐛 P2P 数据面修复战役 —— 跨 NAT tcpForward 恢复可用
+* **WebRTC 重新协商支持**（libwebrtc 2025 适配）：新版 libwebrtc 移除了 in-band 通道的隐式流建立，连接后创建的数据通道不再自动打开。tcpForward 网关现对每条 TCP 连接发起重新协商（复用 XP 信令通路 + `WebRTC-OP-ID` 路由到既有 peer task），provider 在既有 PC 上应用连续 offer；通道数不再有上限，替代临时性的预创建通道方案。
+* **proc 模式（sub-p2p 子进程）同步打通**：Go 侧将连续 offer 经 stdin/stdout op 通路转发给子进程；Rust 侧移除 config 回显（回显占据 stdout 首位导致首轮握手读错消息）。
+
+### 🔧 包装层深层修复
+* **nil network/worker 线程兜底**：2025 版 libwebrtc 将数据通道传输层任务（OnTransportReady、DCEP）投递到 network 线程，线程为 null 时任务永久丢失——PC 信令正常、ICE 可通但通道永不 open。
+* **RegisterObserver 异步注册吞 open**：观察者注册被异步投递且不补发状态，本地创建通道在 transport 就绪时立即 kOpen 但回调丢失；C++ 侧注册后检测补发。
+* **多 tunnel 信令撞号**：各 tunnel 的 taskIDSeed 独立计数，撞号时旧逻辑会杀掉活着的 peer task 顶替，重协商被误判为首轮协商；改为撞号不杀不占位 + 查找优先路由。
+* **信令分帧统一**：所有信令响应消息（SDP/candidate/peer id）统一 2 字节大端长度前缀，消除裸 `{"id":N}` 与 candidate JSON 的解析撞形。
+
+### ✅ 质量基建
+* **test.yml 放宽到全量 core 测试**（27 个，零 skip）：P2P 重协商全链路（TestTCPForward/TestP2PSetOffer）、中转、TLS/SNI、QUIC、鉴权等全部进入 CI。
+* 修复 3 个从未在 CI 跑过的遗留测试：TestSNI 摆脱外网依赖（本地自签 TLS 回声）、TestTCPNumberAndTCPRange 端口避开临时端口区与全局 range 校验、TestReconnectLimit 改确定性限流断言。
+* 消除并行负载下的挂死路径（t.Fatal Goexit × 隧道写阻塞），PC 级等待补超时。
+* 新增 L2 跨 NAT 真打洞验证手册（`docs/l2-p2p-validation.md`）。
+
+---
+
 ## [v2.4.0] - 2026-08-30
 
 ### 🚀 SaaS Control Plane Integration

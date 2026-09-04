@@ -10,8 +10,10 @@ name: build
 #   gt-{linux,macos}-{x86_64,aarch64,riscv64} / gt-win-x86_64.exe + checksums.txt
 
 on:
+  # dev pushes only run the light test.yml workflow; the full 6-platform
+  # build matrix fires on master pushes, v* tags and manual dispatch
   push:
-    branches: [ "dev", "master" ]
+    branches: [ "master" ]
     tags: [ 'v*' ]
   pull_request:
     branches: [ "dev" ]
@@ -156,10 +158,19 @@ jobs:
             echo "Prebuilt webrtc not found; falling back to source build."
             echo "mode=build" >> "$GITHUB_OUTPUT"
           fi
+          # record the exact commit the prebuilt lib was built from, so the
+          # header checkout below can be pinned to it (HEAD-headers vs older
+          # lib skew silently breaks the native peer connection)
+          if [ -f "core/prebuilt/webrtc/${{ matrix.target }}/metadata.json" ]; then
+            revision=$(sed -n 's/.*"webrtc_commit": *"\([^"]*\)".*/\1/p' "core/prebuilt/webrtc/${{ matrix.target }}/metadata.json")
+            echo "revision=$revision" >> "$GITHUB_OUTPUT"
+          fi
 
       # cgo compiles the webrtc bindings against headers from the webrtc
       # checkout (plus abseil-cpp); the prebuilt archives ship only libs.
       - name: Sync WebRTC Dependencies
+        env:
+          WEBRTC_REVISION: ${{ steps.webrtc.outputs.revision }}
         shell: bash
         run: |-
           git clone --depth=1 https://chromium.googlesource.com/chromium/tools/depot_tools.git
@@ -167,7 +178,11 @@ jobs:
           echo "$PWD/depot_tools" >> $GITHUB_PATH
           cd core/dep/_google-webrtc
           gclient config --spec 'solutions = [ { "name": "src", "url": "https://webrtc.googlesource.com/src.git", "managed": False, "custom_deps": {}, }, ]'
-          gclient sync --nohooks --no-history --shallow
+          if [ -n "$WEBRTC_REVISION" ]; then
+            gclient sync --revision "src@$WEBRTC_REVISION" --nohooks --no-history --shallow
+          else
+            gclient sync --nohooks --no-history --shallow
+          fi
           mkdir -p src/build/util
           echo "$(date +%s)" > src/build/util/LASTCHANGE.committime
           echo "LASTCHANGE=d0c0fbd3" > src/build/util/LASTCHANGE

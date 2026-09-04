@@ -300,6 +300,25 @@ ifeq ($(GOOS),windows)
 	python scripts/sort_go_pdata.py release/$(RUST_TARGET_DIR)/$(GO_OUT_FILE_NAME)
 endif
 
+# Core integration tests against the downloaded prebuilt libs. Fully
+# self-contained: no webrtc/msquic source build, no submodule patching.
+# Requires: prebuilt libs extracted under prebuilt/{msquic,webrtc}/$(TARGET)
+# and the webrtc headers synced into dep/_google-webrtc/src (pinned to the
+# lib's commit — HEAD headers vs older lib silently break the native peer
+# connection). TESTFLAGS passes through, e.g.:
+#   make test-prebuilt TESTFLAGS='-run "TestP2P|TestTCPForward" -v'
+.PHONY: test-prebuilt
+test-prebuilt:
+ifneq ($(GOOS),windows)
+	$(eval CGO_CXXFLAGS=-I$(PWD)/dep/_google-webrtc/src -I$(PWD)/dep/_google-webrtc/src/third_party/abseil-cpp -I$(PWD)/dep/_msquic/src/inc -std=c++20 -DWEBRTC_POSIX -DQUIC_API_ENABLE_PREVIEW_FEATURES)
+	$(eval CGO_LDFLAGS=-L$(PWD)/prebuilt/webrtc/$(TARGET)/lib -L$(PWD)/prebuilt/msquic/$(TARGET)/lib -ldl -pthread -lstdc++ $(WEBRTC_PREBUILT_ROOT)/lib/$(WEBRTC_ARTIFACT_LIB_NAME) $(MSQUIC_PREBUILT_ROOT)/lib/$(MSQUIC_ARTIFACT_LIB_NAME))
+else
+	$(eval CGO_CXXFLAGS=-I$(PWD)/dep/_google-webrtc/src -I$(PWD)/dep/_google-webrtc/src/third_party/abseil-cpp -I$(PWD)/dep/_msquic/src/inc -std=c++20 -DWEBRTC_WIN -DQUIC_API_ENABLE_PREVIEW_FEATURES -DNOMINMAX)
+	$(eval CGO_CFLAGS=-DWEBRTC_WIN -DNOMINMAX -DWIN32_LEAN_AND_MEAN -D_WINSOCKAPI_)
+	$(eval CGO_LDFLAGS=-L$(PWD)/prebuilt/webrtc/$(TARGET)/lib -L$(PWD)/prebuilt/msquic/$(TARGET)/lib $(PWD)/prebuilt/webrtc/$(TARGET)/lib/$(WEBRTC_ARTIFACT_LIB_NAME) $(PWD)/prebuilt/msquic/$(TARGET)/lib/$(MSQUIC_ARTIFACT_LIB_NAME))
+endif
+	go test ./test/... -count 1 -timeout 900s $(TESTFLAGS)
+
 release_web_server: $(SOURCES_FRONT) Makefile check_npm front_release duplicate_dist_server
 release_web_client: $(SOURCES_FRONT) Makefile check_npm front_release duplicate_dist_client
 

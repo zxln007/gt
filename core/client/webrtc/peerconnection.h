@@ -46,7 +46,7 @@ void SetRemoteDescription(int sdpType, char *sdp, void *peerConnection);
 void SetLocalDescription(int sdpType, char *sdp, void *peerConnection);
 void GetRemoteDescription(int *sdpType, char **sdp, void *peerConnection);
 void GetLocalDescription(int *sdpType, char **sdp, void *peerConnection);
-char *CreateDataChannel(void **dataChannel, char *label, bool negotiated, void *dataChannelUserData,
+char *CreateDataChannel(void **dataChannel, char *label, bool negotiated, int id, void *dataChannelUserData,
                         void *peerConnectionOutside);
 void onSetLocalDescription(char *err, void *userData);
 void onSetRemoteDescription(char *err, void *userData);

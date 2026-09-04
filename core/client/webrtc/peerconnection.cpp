@@ -21,6 +21,7 @@
 #include <api/peer_connection_interface.h>
 #include <api/scoped_refptr.h>
 #include <api/make_ref_counted.h>
+#include <rtc_base/logging.h>
 #include <rtc_base/thread.h>
 
 #include "datachannel.hpp"
@@ -138,11 +139,35 @@ class PeerConnectionObserver : public webrtc::PeerConnectionObserver {
         } else {
             signalingThread = (webrtc::Thread *)signalingThreadOutside;
         }
+        // network/worker 线程同样必须兜底:2025 版 libwebrtc 的传输层任务
+        // (数据通道 OnTransportReady、DCEP 发送、SCTP 状态查询)都投递到
+        // network 线程,null 线程会让这些任务永久丢失——PC 表现为信令正常、
+        // ICE 可通,但连接后创建的数据通道永远停在 kConnecting。
+        if (networkThreadOutside == nullptr) {
+            ownedNetworkThread = webrtc::Thread::Create();
+            auto ok = ownedNetworkThread->Start();
+            if (!ok) {
+                return (char *)"networkThread start failed";
+            }
+            networkThread = ownedNetworkThread.get();
+        } else {
+            networkThread = (webrtc::Thread *)networkThreadOutside;
+        }
+        if (workerThreadOutside == nullptr) {
+            ownedWorkerThread = webrtc::Thread::Create();
+            auto ok = ownedWorkerThread->Start();
+            if (!ok) {
+                return (char *)"workerThread start failed";
+            }
+            workerThread = ownedWorkerThread.get();
+        } else {
+            workerThread = (webrtc::Thread *)workerThreadOutside;
+        }
 
         webrtc::PeerConnectionFactoryDependencies dependencies;
         dependencies.signaling_thread = signalingThread;
-        dependencies.network_thread = (webrtc::Thread *)networkThreadOutside;
-        dependencies.worker_thread = (webrtc::Thread *)workerThreadOutside;
+        dependencies.network_thread = networkThread;
+        dependencies.worker_thread = workerThread;
         auto peerConnectionFactory =
             webrtc::CreateModularPeerConnectionFactory(std::move(dependencies));
 
@@ -180,12 +205,13 @@ class PeerConnectionObserver : public webrtc::PeerConnectionObserver {
         return nullptr;
     }
 
-    char *CreateDataChannel(void **dataChannelOutside, char *label, bool negotiated,
+    char *CreateDataChannel(void **dataChannelOutside, char *label, bool negotiated, int id,
                             void *dataChannelUserData) {
         char *err = nullptr;
         signalingThread->BlockingCall([&] {
             webrtc::DataChannelInit config;
             config.negotiated = negotiated;
+            config.id = id;
             auto dataChannelOrError = peerConnection->CreateDataChannelOrError(label, &config);
             if (!dataChannelOrError.ok()) {
                 std::stringstream ss;
@@ -204,6 +230,14 @@ class PeerConnectionObserver : public webrtc::PeerConnectionObserver {
                 new ::DataChannelObserver(dataChannelReleased, dataChannelUserData);
             *dataChannelOutside = (void *)dataChannelObserver;
             dataChannelReleased->RegisterObserver(dataChannelObserver);
+            // RegisterObserver 被异步投递到 network 线程执行;若通道创建时
+            // transport 已就绪,OnTransportReady 会立即触发 kOpen 并发出
+            // DCEP,该 open 状态变化发生在注册生效前会被吞掉——本地创建的
+            // 通道将永远等不到 open 回调。这里检测补发一次。
+            if (dataChannelReleased->state() ==
+                webrtc::DataChannelInterface::DataState::kOpen) {
+                dataChannelObserver->ReplayStateChange();
+            }
         });
         return err;
     }
@@ -336,7 +370,11 @@ class PeerConnectionObserver : public webrtc::PeerConnectionObserver {
   private:
     webrtc::scoped_refptr<webrtc::PeerConnectionInterface> peerConnection;
     webrtc::Thread *signalingThread;
+    webrtc::Thread *networkThread;
+    webrtc::Thread *workerThread;
     std::unique_ptr<webrtc::Thread> ownedSignalingThread;
+    std::unique_ptr<webrtc::Thread> ownedNetworkThread;
+    std::unique_ptr<webrtc::Thread> ownedWorkerThread;
     webrtc::scoped_refptr<CreateOfferObserver> createOfferObserver;
     webrtc::scoped_refptr<CreateAnswerObserver> createAnswerObserver;
     void *userData;
@@ -395,10 +433,10 @@ void GetLocalDescription(int *sdpType, char **sdp, void *peerConnectionOutside) 
     peerConnectionObserver->GetDescription(true, sdpType, sdp);
 }
 
-char *CreateDataChannel(void **dataChannel, char *label, bool negotiated, void *dataChannelUserData,
+char *CreateDataChannel(void **dataChannel, char *label, bool negotiated, int id, void *dataChannelUserData,
                         void *peerConnectionOutside) {
     auto peerConnectionObserver = (::PeerConnectionObserver *)peerConnectionOutside;
-    auto err = peerConnectionObserver->CreateDataChannel(dataChannel, label, negotiated,
+    auto err = peerConnectionObserver->CreateDataChannel(dataChannel, label, negotiated, id,
                                                          dataChannelUserData);
     return err;
 }

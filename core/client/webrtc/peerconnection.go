@@ -512,7 +512,14 @@ func (p *PeerConnection) AddICECandidate(candidate *ICECandidate) (err error) {
 }
 
 // CreateDataChannel 使用 dataChannelPointer 是为了防止回调时值还没有被设置，因为是不同的线程
+// CreateDataChannel 创建自动分配 id 的数据通道（negotiated=false 的 in-band 通道用）。
 func (p *PeerConnection) CreateDataChannel(label string, negotiated bool, config *DataChannelConfig, dataChannelPointer **DataChannel) (err error) {
+	return p.CreateDataChannelWithID(label, 0, negotiated, false, config, dataChannelPointer)
+}
+
+// CreateDataChannelWithID 创建带显式 id 的数据通道。negotiated=true（out-of-band）
+// 时 id 必须设置,且双方必须一致才能配对。
+func (p *PeerConnection) CreateDataChannelWithID(label string, id uint16, negotiated bool, autoID bool, config *DataChannelConfig, dataChannelPointer **DataChannel) (err error) {
 	channel := &DataChannel{
 		Label:  label,
 		config: config,
@@ -522,10 +529,17 @@ func (p *PeerConnection) CreateDataChannel(label string, negotiated bool, config
 	(*dataChannelPointer).pointerID = pointer.Save(*dataChannelPointer)
 
 	labelC := C.CString(label)
+	var cid C.int
+	if autoID {
+		cid = -1
+	} else {
+		cid = C.int(id)
+	}
 	errC := C.CreateDataChannel(
 		&(*dataChannelPointer).dataChannel,
 		labelC,
 		C.bool(negotiated),
+		cid,
 		(*dataChannelPointer).pointerID,
 		p.peerConnection,
 	)

@@ -24,6 +24,10 @@ class DataChannelObserver : public webrtc::DataChannelObserver {
     DataChannelObserver(webrtc::DataChannelInterface *dataChannel, void *userData);
     ~DataChannelObserver();
 
+    // 补发当前状态:观察者注册被异步投递到 network 线程,注册生效前发生的
+    // open 状态变化会被吞掉(本地创建通道在 transport 已就绪时立即 open)
+    void ReplayStateChange() { OnStateChange(); }
+
   protected:
     void OnStateChange();
     void OnMessage(const webrtc::DataBuffer &buffer);
