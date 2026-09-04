@@ -195,7 +195,11 @@ func TestP2PGetOffer(t *testing.T) {
 	}
 	req.Header.Set("WebRTC-OP", "resp-answer")
 	req.Header.Set("WebRTC-OP-ID", strconv.FormatUint(uint64(id.ID), 10))
-	<-candidateDoneChan
+	select {
+	case <-candidateDoneChan:
+	case <-time.After(60 * time.Second):
+		t.Fatal("ice gathering timeout")
+	}
 	answerBuf := &bytes.Buffer{}
 	chunkedWriter := std.NewChunkedWriter(answerBuf)
 	answerBytes, err := json.Marshal(peerConnection.GetLocalDescription())
@@ -385,60 +389,60 @@ func TestP2PSetOffer(t *testing.T) {
 		}
 	}
 
-	// 重协商:连接建立后创建的 in-band 通道必须经重新协商进入 SDP 才会 open
-	renegotiate := func() {
+	// 重协商:连接建立后创建的 in-band 通道必须经重新协商进入 SDP 才会 open。
+	// 闭包返回 error 而不是 t.Fatal:t.Fatal 会 Goexit 并执行闭包里 defer 的
+	// Body.Close(),该 Close 走隧道写路径,在僵死的信令连接上会无限阻塞,
+	// 把测试失败变成整包挂死(15m 超时)
+	renegotiate := func() error {
 		renegOffer, err := pc.CreateOffer()
 		if err != nil {
-			t.Fatal(err)
+			return err
 		}
 		err = pc.SetLocalDescription(renegOffer)
 		if err != nil {
-			t.Fatal(err)
+			return err
 		}
 		renegSDP, err := json.Marshal(pc.GetLocalDescription())
 		if err != nil {
-			t.Fatal(err)
+			return err
 		}
 		renegRaw := &bytes.Buffer{}
 		w := std.NewChunkedWriter(renegRaw)
 		_, err = w.Write(append([]byte{byte(len(renegSDP) >> 8), byte(len(renegSDP))}, renegSDP...))
 		if err != nil {
-			t.Fatal(err)
+			return err
 		}
 		renegReq, err := http.NewRequest("XP", "http://abc.p2p.com/test", nil)
 		if err != nil {
-			t.Fatal(err)
+			return err
 		}
 		renegReq.Header.Set("WebRTC-OP-ID", strconv.FormatUint(uint64(peerID.ID), 10))
 		renegReq.Body = io.NopCloser(renegRaw)
 		renegReq.ContentLength = -1
 		renegResp, err := httpClient.Do(renegReq)
 		if err != nil {
-			t.Fatal(err)
+			return err
 		}
 		defer renegResp.Body.Close()
 		if renegResp.StatusCode != http.StatusOK {
-			t.Fatal("invalid renegotiation status code")
+			return errors.New("invalid renegotiation status code")
 		}
 		var answerLen uint16
 		err = binary.Read(renegResp.Body, binary.BigEndian, &answerLen)
 		if err != nil {
-			t.Fatal(err)
+			return err
 		}
 		answerBytes := make([]byte, answerLen)
 		_, err = io.ReadFull(renegResp.Body, answerBytes)
 		if err != nil {
-			t.Fatal(err)
+			return err
 		}
 		var renegAnswer webrtc.SessionDescription
 		err = json.Unmarshal(answerBytes, &renegAnswer)
 		if err != nil {
-			t.Fatal(err)
+			return err
 		}
-		err = pc.SetRemoteDescription(&renegAnswer)
-		if err != nil {
-			t.Fatal(err)
-		}
+		return pc.SetRemoteDescription(&renegAnswer)
 	}
 
 	for i := 0; i < 10; i++ {
@@ -468,7 +472,9 @@ func TestP2PSetOffer(t *testing.T) {
 		if err != nil {
 			t.Fatal(err)
 		}
-		renegotiate()
+		if err := renegotiate(); err != nil {
+			t.Fatalf("renegotiate channel %d: %v", i, err)
+		}
 		deadline := time.After(30 * time.Second)
 	openWait:
 		for {
@@ -547,7 +553,12 @@ func initOffer(t *testing.T, addr string, threadPool *webrtc.ThreadPool) (*webrt
 		t.Fatal(err)
 	}
 
-	<-waitNegotiationNeeded
+	// 带超时等待:全量并行下 libwebrtc 回调可能被拖慢,不能无限期阻塞
+	select {
+	case <-waitNegotiationNeeded:
+	case <-time.After(60 * time.Second):
+		t.Fatal("negotiation needed timeout")
+	}
 	offer, err := peerConnection.CreateOffer()
 	if err != nil {
 		t.Fatal(err)
@@ -556,7 +567,11 @@ func initOffer(t *testing.T, addr string, threadPool *webrtc.ThreadPool) (*webrt
 	if err != nil {
 		t.Fatal(err)
 	}
-	<-candidateDoneChan
+	select {
+	case <-candidateDoneChan:
+	case <-time.After(60 * time.Second):
+		t.Fatal("ice gathering timeout")
+	}
 
 	return peerConnection, peerConnection.GetLocalDescription()
 }
